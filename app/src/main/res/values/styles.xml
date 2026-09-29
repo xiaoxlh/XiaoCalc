@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!--
+      仅保留启动窗口所需的最小样式：界面本身完全由 Compose + Material 3 主题绘制。
+      窗口背景设为纯黑，避免冷启动时先闪一帧白屏。
+    -->
+    <style name="Theme.XiaoCalc" parent="android:style/Theme.Material.NoActionBar">
+        <item name="android:windowBackground">@color/background</item>
+        <item name="android:colorAccent">@color/brand_red</item>
+        <item name="android:statusBarColor">@android:color/transparent</item>
+        <item name="android:navigationBarColor">@android:color/transparent</item>
+        <item name="android:windowLightStatusBar">false</item>
+    </style>
+</resources>

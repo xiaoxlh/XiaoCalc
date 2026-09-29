@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- 与 Compose 侧 design/Color.kt 的品牌色保持一致；
+         这里只保留启动窗口/系统强调色真正用到的几项。 -->
+    <color name="background">#FF000000</color>
+    <color name="brand_blue">#FF2C56FF</color>
+    <color name="brand_red">#FFFF5454</color>
+</resources>

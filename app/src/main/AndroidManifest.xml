@@ -1,0 +1,35 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools">
+
+    <!--
+      面向圆形表盘的安卓手表计算器：声明手表硬件但不设为必需，
+      因此同一份 APK 仍可侧载到手机 / 方形手表上调试。
+    -->
+    <uses-feature
+        android:name="android.hardware.type.watch"
+        android:required="false" />
+
+    <application
+        android:allowBackup="true"
+        android:icon="@drawable/xiaocalc_logo"
+        android:label="@string/app_name"
+        android:roundIcon="@drawable/xiaocalc_logo"
+        android:supportsRtl="true"
+        android:theme="@style/Theme.XiaoCalc"
+        tools:targetApi="31">
+
+        <activity
+            android:name=".MainActivity"
+            android:exported="true"
+            android:label="@string/app_name"
+            android:theme="@style/Theme.XiaoCalc">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity>
+
+    </application>
+
+</manifest>

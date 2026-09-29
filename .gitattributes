@@ -1,0 +1,23 @@
+# 统一换行符策略。
+#
+# 为什么需要：本仓库在 Windows 上开发，若放任 core.autocrlf 转换，
+# 同一份源码在不同机器上会写入 CRLF，导致"整文件 diff"——真正的改动被淹没。
+# 源码一律 LF，Windows 脚本保留 CRLF。
+* text=auto eol=lf
+
+*.bat text eol=crlf
+*.cmd text eol=crlf
+gradlew text eol=lf
+
+# 二进制资源：禁止任何换行转换
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.webp binary
+*.ttf binary
+*.otf binary
+*.jar binary
+*.mov binary
+*.mp4 binary
+*.apk binary
+*.aab binary
