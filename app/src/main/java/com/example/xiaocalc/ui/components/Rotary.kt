@@ -1,22 +1,20 @@
 package com.example.xiaocalc.ui.components
 
 import android.content.Context
-import androidx.compose.animation.core.Animatable
-import androidx.compose.animation.core.tween
 import androidx.compose.foundation.ScrollState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.rememberUpdatedState
-import androidx.compose.runtime.snapshotFlow
+import androidx.compose.runtime.setValue
 import androidx.compose.runtime.staticCompositionLocalOf
-import com.example.xiaocalc.design.Motion
+import androidx.compose.runtime.withFrameNanos
 import java.io.File
 import kotlin.math.abs
-import kotlinx.coroutines.launch
+import kotlin.math.exp
 
 /**
  * 旋转表冠 / 表圈适配。
@@ -52,26 +50,45 @@ import kotlinx.coroutines.launch
 const val ROTARY_DETENT = 0.0131f
 
 /**
- * 一档滚动多少像素。
+ * 表冠旋转方向 → 滚动方向的映射。
  *
- * [RotaryScrollHandler] 让目标累加之后，这个值**就等于实际位移**，可以直接按手感调。
- * 20 约等于"转 30 来档走完一屏设置列表"。
+ * 真机实测正转（内核 `REL_WHEEL` 为正）需要**向上**滚动列表，
+ * 即 `ScrollState` 的值减小，因此取 -1。
+ * 单独抽成常量是因为"方向"和"速度"是两件事，混在一个数里会互相干扰。
  */
-const val PIXELS_PER_DETENT = 20f
-
-/** 单次事件上限：快速旋转时内核会批量累加，不设限会跳很远 */
-const val MAX_PIXELS_PER_EVENT = 240f
+const val ROTARY_DIRECTION = -1f
 
 /**
- * 表冠滚动的补间时长。
+ * 一档滚动多少像素。
  *
- * 只影响**平滑度**，不影响总位移——位移由 [PIXELS_PER_DETENT] 决定。
+ * 目标累加之后这个值**就等于实际位移**，可直接按手感校准。
+ * 实测 20 偏快、等效 2.8 偏慢，取 10。
  */
-const val ROTARY_ANIM_MS = 180
+const val PIXELS_PER_DETENT = 10f
+
+/** 单次事件最多折算多少档。快速旋转时单次事件可达 20+ 档（实测峰值 27），须封顶 */
+const val MAX_DETENTS_PER_EVENT = 6f
+
+/**
+ * 单次事件上限。
+ *
+ * 用"档数"而不是绝对像素来表达，是为了让它随 [PIXELS_PER_DETENT] 一起缩放——
+ * 否则调完速度还得回头重算上限，两者会脱节。
+ */
+const val MAX_PIXELS_PER_EVENT = PIXELS_PER_DETENT * MAX_DETENTS_PER_EVENT
+
+/**
+ * 跟随的时间常数（毫秒）：显示值以指数方式逼近目标，越小越跟手。
+ *
+ * 不用逐事件 `animateTo` 的原因：那会在每个事件重启一次缓动曲线，
+ * 速度不连续，转起来一顿一顿的。指数逼近没有"重启"这个概念，
+ * 每个事件只是把目标推远一点，显示值始终沿同一条曲线追上去。
+ */
+const val ROTARY_TAU_MS = 80f
 
 /** 纯函数：把原始 AXIS_SCROLL 换算成滚动像素。抽出来是为了可单测 */
 fun rotaryPixels(delta: Float): Float =
-    (delta / ROTARY_DETENT * PIXELS_PER_DETENT)
+    (ROTARY_DIRECTION * delta / ROTARY_DETENT * PIXELS_PER_DETENT)
         .coerceIn(-MAX_PIXELS_PER_EVENT, MAX_PIXELS_PER_EVENT)
 
 /** 表冠在计算器页的去向 */
@@ -149,42 +166,58 @@ fun RotaryHandler(page: Any, handler: (Float) -> Unit) {
 /**
  * 让一个使用 [ScrollState] 的滚动容器响应表冠。
  *
- * ## 为什么要有"目标位置"这一层
+ * ## 为什么不逐事件驱动滚动状态
  *
- * 早期版本每个事件直接 `scrollState.animateScrollBy(pixels)`。问题在于
- * `animateScrollBy` 的目标是"**当前位置** + pixels"——若动画没走完就来了下一个事件，
- * Compose 会取消旧动画并从当前位置重新设目标，**尚未走完的位移就此丢失**。
+ * 早期版本每个事件直接 `scrollState.animateScrollBy(pixels)`。它有两个问题：
  *
- * 后果有两层：实际速度只剩设定值的几分之一，而且**随事件到达频率浮动**，
- * 于是这个旋钮怎么调都不对（实测 44 → 16 → 8 一路调小仍不准）。
+ * 1. **位移会被丢弃**——动画未走完就来下一个事件时，Compose 取消旧动画并
+ *    从当前位置重新设目标，剩下的位移就没了。实际速度只剩设定值的几分之一，
+ *    而且随事件频率浮动，旋钮怎么调都不准。
+ * 2. **不平滑**——每个事件重启一次缓动曲线，速度不连续，转起来一顿一顿。
  *
- * 现在让 [target] 累加：动画只负责平滑，不决定走了多远。
- * 每个事件推进多少就是多少，[PIXELS_PER_DETENT] 因此变成可直接按手感校准的量。
+ * ## 现在的做法
+ *
+ * 表冠事件只推进 [target]（累加，不丢位移）；一个逐帧循环让显示值以
+ * **指数方式**逼近目标。指数逼近没有"重启"概念，因此速度始终连续，
+ * 且收敛速度与帧率无关。
  */
 @Composable
 fun RotaryScrollHandler(page: Any, scrollState: ScrollState) {
-    val scope = rememberCoroutineScope()
-    val target = remember { Animatable(0f) }
-
-    // 把目标位置写回滚动状态
-    LaunchedEffect(scrollState, target) {
-        snapshotFlow { target.value }.collect { scrollState.scrollTo(it.toInt()) }
-    }
+    var target by remember { mutableFloatStateOf(0f) }
+    var display by remember { mutableFloatStateOf(0f) }
 
     RotaryHandler(page) { pixels ->
-        scope.launch {
-            // 手指滚动过就重新对齐：否则表冠会从陈旧的旧目标位置往回跳
-            val current = scrollState.value.toFloat()
-            if (abs(target.value - current) > 2f) target.snapTo(current)
+        val current = scrollState.value.toFloat()
+        // display 始终跟随 scrollState，因此两者分开就说明手指滚动过，需要重新对齐；
+        // 否则表冠会从陈旧的旧位置往回跳
+        if (abs(current - display) > 2f) {
+            target = current
+            display = current
+        }
+        target = (target + pixels).coerceIn(0f, scrollState.maxValue.toFloat())
+    }
 
-            val max = scrollState.maxValue.toFloat()
-            target.animateTo(
-                targetValue = (target.value + pixels).coerceIn(0f, max),
-                animationSpec = tween(
-                    durationMillis = ROTARY_ANIM_MS,
-                    easing = Motion.EmphasizedDecelerate,
-                ),
-            )
+    LaunchedEffect(scrollState) {
+        var lastFrame = 0L
+        while (true) {
+            val now = withFrameNanos { it }
+            val dtMillis = if (lastFrame == 0L) {
+                16f
+            } else {
+                ((now - lastFrame) / 1_000_000f).coerceIn(1f, 64f)
+            }
+            lastFrame = now
+
+            val diff = target - display
+            if (abs(diff) < 0.5f) {
+                if (display != target) {
+                    display = target
+                    scrollState.scrollTo(display.toInt())
+                }
+            } else {
+                display += diff * (1f - exp(-dtMillis / ROTARY_TAU_MS))
+                scrollState.scrollTo(display.toInt())
+            }
         }
     }
 }
