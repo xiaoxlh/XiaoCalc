@@ -1,17 +1,21 @@
 package com.example.xiaocalc.ui.components
 
 import android.content.Context
+import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.ScrollState
-import androidx.compose.foundation.gestures.animateScrollBy
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.rememberUpdatedState
+import androidx.compose.runtime.snapshotFlow
 import androidx.compose.runtime.staticCompositionLocalOf
 import com.example.xiaocalc.design.Motion
 import java.io.File
+import kotlin.math.abs
 import kotlinx.coroutines.launch
 
 /**
@@ -50,22 +54,20 @@ const val ROTARY_DETENT = 0.0131f
 /**
  * 一档滚动多少像素。
  *
- * 真机两轮校准：44 → 16 仍被反馈"太快"，降到 8。
- * 内核一次转动常产生多个事件，实际位移是这里的数倍。
+ * [RotaryScrollHandler] 让目标累加之后，这个值**就等于实际位移**，可以直接按手感调。
+ * 20 约等于"转 30 来档走完一屏设置列表"。
  */
-const val PIXELS_PER_DETENT = 8f
+const val PIXELS_PER_DETENT = 20f
 
 /** 单次事件上限：快速旋转时内核会批量累加，不设限会跳很远 */
-const val MAX_PIXELS_PER_EVENT = 90f
+const val MAX_PIXELS_PER_EVENT = 240f
 
 /**
  * 表冠滚动的补间时长。
  *
- * 表冠事件是**离散**的（一档一个 `ACTION_SCROLL`），直接 `scrollBy` 会一格一格地跳。
- * 交给 `animateScrollBy` 之后，Compose 的 MutatorMutex 会自动取消上一条动画、
- * 从当前位置续接新目标，于是连续转动呈现为一条带减速的平滑跟随——即 M3 的手感。
+ * 只影响**平滑度**，不影响总位移——位移由 [PIXELS_PER_DETENT] 决定。
  */
-const val ROTARY_ANIM_MS = 220
+const val ROTARY_ANIM_MS = 180
 
 /** 纯函数：把原始 AXIS_SCROLL 换算成滚动像素。抽出来是为了可单测 */
 fun rotaryPixels(delta: Float): Float =
@@ -144,14 +146,40 @@ fun RotaryHandler(page: Any, handler: (Float) -> Unit) {
     }
 }
 
-/** 让一个使用 [ScrollState] 的滚动容器响应表冠（带 M3 减速补间） */
+/**
+ * 让一个使用 [ScrollState] 的滚动容器响应表冠。
+ *
+ * ## 为什么要有"目标位置"这一层
+ *
+ * 早期版本每个事件直接 `scrollState.animateScrollBy(pixels)`。问题在于
+ * `animateScrollBy` 的目标是"**当前位置** + pixels"——若动画没走完就来了下一个事件，
+ * Compose 会取消旧动画并从当前位置重新设目标，**尚未走完的位移就此丢失**。
+ *
+ * 后果有两层：实际速度只剩设定值的几分之一，而且**随事件到达频率浮动**，
+ * 于是这个旋钮怎么调都不对（实测 44 → 16 → 8 一路调小仍不准）。
+ *
+ * 现在让 [target] 累加：动画只负责平滑，不决定走了多远。
+ * 每个事件推进多少就是多少，[PIXELS_PER_DETENT] 因此变成可直接按手感校准的量。
+ */
 @Composable
 fun RotaryScrollHandler(page: Any, scrollState: ScrollState) {
     val scope = rememberCoroutineScope()
+    val target = remember { Animatable(0f) }
+
+    // 把目标位置写回滚动状态
+    LaunchedEffect(scrollState, target) {
+        snapshotFlow { target.value }.collect { scrollState.scrollTo(it.toInt()) }
+    }
+
     RotaryHandler(page) { pixels ->
         scope.launch {
-            scrollState.animateScrollBy(
-                value = pixels,
+            // 手指滚动过就重新对齐：否则表冠会从陈旧的旧目标位置往回跳
+            val current = scrollState.value.toFloat()
+            if (abs(target.value - current) > 2f) target.snapTo(current)
+
+            val max = scrollState.maxValue.toFloat()
+            target.animateTo(
+                targetValue = (target.value + pixels).coerceIn(0f, max),
                 animationSpec = tween(
                     durationMillis = ROTARY_ANIM_MS,
                     easing = Motion.EmphasizedDecelerate,
