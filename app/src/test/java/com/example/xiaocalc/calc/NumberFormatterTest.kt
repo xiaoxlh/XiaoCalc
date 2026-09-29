@@ -71,8 +71,8 @@ class NumberFormatterTest {
         assertEquals("π", NumberFormatter.format(Math.PI, settings, "π"))
         assertEquals("2π", NumberFormatter.format(2 * Math.PI, settings, "2×π"))
         assertEquals("π/2", NumberFormatter.format(Math.PI / 2, settings, "π÷2"))
-        // 不是简洁倍数 → 回落到小数
-        assertEquals("4.141592654", NumberFormatter.format(Math.PI + 1, settings, "π+1"))
+        // 含常数项的和式同样保留符号
+        assertEquals("π+1", NumberFormatter.format(Math.PI + 1, settings, "π+1"))
     }
 
     @Test
@@ -132,13 +132,58 @@ class NumberFormatterTest {
         assertEquals("2√2", NumberFormatter.format(kotlin.math.sqrt(8.0), root, "√(8)"))
     }
 
+    // -------------------------------------------------- 作业场景：和式与同类项合并
+
     @Test
-    fun `加法表达式不参与符号化`() {
+    fun `和为无理数时保留和式`() {
         val both = defaults.copy(keepRoot = true, keepSymbols = true)
-        // 1+√2 不是纯因子乘积，回落小数
+        val v = 1 + kotlin.math.sqrt(2.0)
+        assertEquals("1+√2", NumberFormatter.format(v, both, "1+√2"))
         assertEquals(
-            "2.414213562",
-            NumberFormatter.format(1 + kotlin.math.sqrt(2.0), both, "1+√2"),
+            "√2+√3",
+            NumberFormatter.format(
+                kotlin.math.sqrt(2.0) + kotlin.math.sqrt(3.0),
+                both,
+                "√2+√3",
+            ),
+        )
+    }
+
+    @Test
+    fun `同类根式会合并系数`() {
+        val root = defaults.copy(keepRoot = true)
+        val v2 = kotlin.math.sqrt(2.0)
+        assertEquals("5√2", NumberFormatter.format(5 * v2, root, "2√2+3√2"))
+        assertEquals("2√2", NumberFormatter.format(2 * v2, root, "√2+√2"))
+        // 相减
+        assertEquals("√2", NumberFormatter.format(v2, root, "3√2-2√2"))
+    }
+
+    @Test
+    fun `先化简再合并`() {
+        val root = defaults.copy(keepRoot = true)
+        // √18 - √8 = 3√2 - 2√2 = √2
+        assertEquals("√2", NumberFormatter.format(kotlin.math.sqrt(2.0), root, "√18-√8"))
+    }
+
+    @Test
+    fun `同类项相消后回落常规格式化`() {
+        val root = defaults.copy(keepRoot = true)
+        // √2-√2 = 0，没有符号可留
+        assertEquals("0", NumberFormatter.format(0.0, root, "√2-√2"))
+    }
+
+    @Test
+    fun `括号内加减不参与符号化`() {
+        val both = defaults.copy(keepRoot = true, keepSymbols = true)
+        // (1+√2) 含括号，超出表达边界 → 回落小数
+        assertEquals(
+            "0.6035533906",
+            NumberFormatter.format(
+                (1 + kotlin.math.sqrt(2.0)) / 4,
+                both,
+                "(1+√2)÷4",
+            ),
         )
     }
 
