@@ -10,6 +10,7 @@ import kotlin.math.floor
 import kotlin.math.log10
 import kotlin.math.pow
 import kotlin.math.roundToLong
+import kotlin.math.sqrt
 
 /**
  * 结果格式化。
@@ -36,14 +37,23 @@ object NumberFormatter {
     /** "科学计数法"开关的阈值（沿用旧版语义：≥10000 即切换） */
     private const val SCI_SETTING_THRESHOLD = 10_000.0
 
-    private const val MAX_SYMBOLIC_DENOMINATOR = 12L
+    /** 符号化式的分子绝对值上限，挡住病态输入 */
+    private const val MAX_SYMBOLIC_NUMERATOR = 99_999L
+
+    /** 根号内数字与各因子累乘的上限 */
+    private const val MAX_SYMBOLIC_FACTOR = 999_999L
 
     fun format(value: Double, settings: CalcSettings, source: String = ""): String {
         if (value.isNaN()) return "NaN"
         if (value == 0.0) return "0"
 
-        if (settings.keepRoot) radical(source)?.let { return applyGroupingIfPlain(it, settings) }
-        if (settings.keepSymbols) symbolic(source, value)?.let { return it }
+        if (settings.keepRoot || settings.keepSymbols) {
+            symbolicForm(source, value)?.let { form ->
+                if (form.allowedBy(settings)) {
+                    return applyGroupingIfPlain(form.render(), settings)
+                }
+            }
+        }
 
         val magnitude = abs(value)
         if (settings.scientific && magnitude >= SCI_SETTING_THRESHOLD) return scientific(value)
@@ -186,46 +196,170 @@ object NumberFormatter {
     private fun applyGroupingIfPlain(text: String, settings: CalcSettings): String =
         if (settings.groupDigits) groupThousands(text) else text
 
-    // ------------------------------------------------------------- 根号符号化
+    // --------------------------------------------------- 根号与 π / e 的符号化
 
     /**
-     * 当源表达式形如 `√n` / `m×√n` / `√n×m` 且 n 为整数时，输出最简根式。
-     * 例：`√8 → 2√2`，`√9 → 3`，`2×√18 → 6√2`。
+     * 符号化结果：`有理系数 × √(平方自由数) × π^a × e^b`。
+     *
+     * `radicand == 1` 表示没有根号，`piPower` / `ePower` 为 0 表示不含该常数。
      */
-    private fun radical(source: String): String? {
+    internal class SymbolicForm(
+        val numerator: Long,
+        val denominator: Long,
+        val radicand: Long,
+        val piPower: Int,
+        val ePower: Int,
+    ) {
+        fun numericValue(): Double {
+            var v = numerator.toDouble() / denominator.toDouble()
+            if (radicand > 1L) v *= sqrt(radicand.toDouble())
+            repeat(piPower) { v *= PI }
+            repeat(ePower) { v *= E }
+            return v
+        }
+
+        /** 只有当所需符号都被对应开关允许时才输出，否则回落小数 */
+        fun allowedBy(settings: CalcSettings): Boolean =
+            (radicand <= 1L || settings.keepRoot) &&
+                (piPower == 0 || settings.keepSymbols) &&
+                (ePower == 0 || settings.keepSymbols)
+
+        fun render(): String {
+            val symbols = buildString {
+                if (piPower > 0) append(PI_SUFFIX[piPower])
+                if (ePower > 0) append(E_SUFFIX[ePower])
+                if (radicand > 1L) append('√').append(radicand)
+            }
+            val magnitude = when {
+                symbols.isEmpty() -> numerator.toString()
+                numerator == 1L -> symbols
+                numerator == -1L -> "-$symbols"
+                else -> "$numerator$symbols"
+            }
+            return if (denominator == 1L) magnitude else "$magnitude/$denominator"
+        }
+
+        companion object {
+            private val PI_SUFFIX = arrayOf("", "π", "π²")
+            private val E_SUFFIX = arrayOf("", "e", "e²")
+        }
+    }
+
+    /**
+     * 把源表达式分解为 [SymbolicForm]。
+     *
+     * **为什么不再按字符串前缀硬匹配**：旧实现只认 `√n` / `m×√n` / `√n×m` 三种字面形态，
+     * 一旦根号与 π/e 同时出现（如 `π√2`）就全盘失效、回落到小数。
+     * 现在把整个表达式当作**因子乘积**来读，因此 `π√2`、`2π√2`、`√2×√3`、`√8÷2` 都能化简。
+     *
+     * 出现加减、函数等无法用该式表达的构造时返回 null（回落小数）。
+     * 解析完成后还会**用数值反验**：符号式的求值必须与真实结果一致，防住解析误读。
+     */
+    private fun symbolicForm(source: String, value: Double): SymbolicForm? {
         val s = source.replace(" ", "")
-        val marker = s.indexOf('√')
-        if (marker < 0 || s.indexOf('√', marker + 1) >= 0) return null
+        if (s.isEmpty()) return null
 
-        val before = s.substring(0, marker)
-        var after = s.substring(marker + 1)
+        var numerator = 1L
+        var denominator = 1L
+        var radicand = 1L
+        var piPower = 0
+        var ePower = 0
+        var index = 0
+        var sawFactor = false
 
-        var coefficient = when {
-            before.isEmpty() -> 1L
-            before == "-" -> -1L
-            before.endsWith("×") -> before.dropLast(1).toLongOrNull() ?: return null
-            else -> return null
+        while (index < s.length) {
+            var divide = false
+            when (s[index]) {
+                '×' -> index++
+                '÷' -> { divide = true; index++ }
+            }
+            if (index >= s.length) return null
+            val direction = if (divide) -1 else 1
+
+            when {
+                s[index] == 'π' -> { piPower += direction; index++ }
+                s[index] == 'e' -> { ePower += direction; index++ }
+                s[index] == '√' -> {
+                    // ÷√n 需要分母有理化，超出本式的表达能力
+                    if (divide) return null
+                    index++
+                    val read = readInteger(s, index) ?: return null
+                    if (read.first < 1L) return null
+                    radicand = multiplyCapped(radicand, read.first) ?: return null
+                    index = read.second
+                }
+                s[index].isDigit() -> {
+                    val read = readInteger(s, index) ?: return null
+                    if (divide) {
+                        denominator = multiplyCapped(denominator, read.first) ?: return null
+                    } else {
+                        numerator = multiplyCapped(numerator, read.first) ?: return null
+                    }
+                    index = read.second
+                }
+                else -> return null
+            }
+            sawFactor = true
         }
 
-        // √n×m 形态：把后置系数并入总系数
-        val timesIndex = after.indexOf('×')
-        if (timesIndex > 0) {
-            val trailing = after.substring(timesIndex + 1).toLongOrNull() ?: return null
-            coefficient *= trailing
-            after = after.substring(0, timesIndex)
+        if (!sawFactor) return null
+        if (piPower !in 0..2 || ePower !in 0..2) return null
+
+        // 根式化简：把完全平方因子提到根号外，根号内只留平方自由数
+        if (radicand > 1L) {
+            val (outside, inside) = simplifyRadical(radicand)
+            numerator = multiplyCapped(numerator, outside) ?: return null
+            radicand = inside
         }
 
-        val radicand = after.toLongOrNull() ?: return null
-        if (radicand < 1) return null
+        // 没有任何符号可保留时交给常规格式化，
+        // 否则会把 `10÷4` 这种纯有理式显示成 `5/2`
+        if (radicand <= 1L && piPower == 0 && ePower == 0) return null
 
-        val (outside, inside) = simplifyRadical(radicand)
-        val totalOutside = coefficient * outside
-        return when {
-            inside == 1L -> totalOutside.toString()
-            totalOutside == 1L -> "√$inside"
-            totalOutside == -1L -> "-√$inside"
-            else -> "${totalOutside}√$inside"
+        val divisor = gcd(abs(numerator), denominator)
+        if (divisor > 1L) {
+            numerator /= divisor
+            denominator /= divisor
         }
+        if (abs(numerator) > MAX_SYMBOLIC_NUMERATOR) return null
+
+        val form = SymbolicForm(numerator, denominator, radicand, piPower, ePower)
+        val tolerance = 1e-9 * maxOf(1.0, abs(value))
+        if (abs(form.numericValue() - value) > tolerance) return null
+        return form
+    }
+
+    /**
+     * 读一个非负整数，允许写成 `n` 或 `(n)`（函数页的括号补全会产生后者）。
+     * 返回 (值, 下一位置)；读不到或超限时返回 null。
+     */
+    private fun readInteger(s: String, start: Int): Pair<Long, Int>? {
+        var i = start
+        var closeIndex = -1
+        if (i < s.length && s[i] == '(') {
+            closeIndex = s.indexOf(')', i)
+            if (closeIndex < 0) return null
+            i++
+        }
+        val from = i
+        var acc = 0L
+        while (i < s.length && s[i].isDigit()) {
+            acc = acc * 10 + (s[i] - '0')
+            if (acc > MAX_SYMBOLIC_FACTOR) return null
+            i++
+        }
+        if (i == from) return null
+        if (closeIndex >= 0) {
+            if (i != closeIndex) return null
+            i = closeIndex + 1
+        }
+        return acc to i
+    }
+
+    private fun multiplyCapped(a: Long, b: Long): Long? {
+        if (b <= 0L) return null
+        if (a > MAX_SYMBOLIC_FACTOR / b) return null
+        return a * b
     }
 
     /** n = outside² · inside，inside 无平方因子 */
@@ -242,49 +376,6 @@ object NumberFormatter {
             factor++
         }
         return outside to inside
-    }
-
-    // --------------------------------------------------------- π / e 符号化
-
-    /**
-     * 当源表达式含 π 或 e，且结果恰为它们的"简单有理倍数"（分母 ≤ 12）时保留符号。
-     * 例：`2×π → 2π`，`π÷2 → π/2`，`π+1` 不满足 → 回落到小数。
-     */
-    private fun symbolic(source: String, value: Double): String? {
-        if (value == 0.0) return null
-        for ((symbol, constant) in SYMBOLIC_CONSTANTS) {
-            if (!source.contains(symbol)) continue
-            val (numerator, denominator) = rationalMultiple(value, constant) ?: continue
-            return when {
-                denominator == 1L && numerator == 1L -> symbol
-                denominator == 1L && numerator == -1L -> "-$symbol"
-                denominator == 1L -> "$numerator$symbol"
-                numerator == 1L -> "$symbol/$denominator"
-                numerator == -1L -> "-$symbol/$denominator"
-                else -> "$numerator$symbol/$denominator"
-            }
-        }
-        return null
-    }
-
-    private val SYMBOLIC_CONSTANTS = listOf("π" to PI, "e" to E)
-
-    /** 把 value 表示为 constant 的既约有理倍数 p/q；找不到简洁表示时返回 null。 */
-    private fun rationalMultiple(value: Double, constant: Double): Pair<Long, Long>? {
-        for (denominator in 1L..MAX_SYMBOLIC_DENOMINATOR) {
-            val scaled = value * denominator / constant
-            val numerator = scaled.roundToLong()
-            if (numerator == 0L) continue
-            val tolerance = 1e-9 * maxOf(1.0, abs(numerator.toDouble()))
-            if (abs(scaled - numerator) > tolerance) continue
-
-            val divisor = gcd(abs(numerator), denominator)
-            val p = numerator / divisor
-            val q = denominator / divisor
-            if (abs(p) > 9999L) return null
-            return p to q
-        }
-        return null
     }
 
     private fun gcd(a: Long, b: Long): Long {

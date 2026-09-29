@@ -162,6 +162,33 @@ class CalculatorStateTest {
     }
 
     @Test
+    fun `保留根号时按键流程能化简根式`() {
+        val s = state()
+        s.updateSettings { it.copy(keepRoot = true) }
+        s.type("√8")
+        s.onKey(CalcKey.Equals)
+        assertEquals("2√2", s.resultText)
+    }
+
+    @Test
+    fun `保留根号时完全平方数直接开出整数`() {
+        val s = state()
+        s.updateSettings { it.copy(keepRoot = true) }
+        s.type("√9")
+        s.onKey(CalcKey.Equals)
+        assertEquals("3", s.resultText)
+    }
+
+    @Test
+    fun `保留根号时带系数的根式`() {
+        val s = state()
+        s.updateSettings { it.copy(keepRoot = true) }
+        s.type("2×√18")
+        s.onKey(CalcKey.Equals)
+        assertEquals("6√2", s.resultText)
+    }
+
+    @Test
     fun `符号化结果续算使用数值而不是显示串`() {
         val s = state()
         s.updateSettings { it.copy(keepSymbols = true) }

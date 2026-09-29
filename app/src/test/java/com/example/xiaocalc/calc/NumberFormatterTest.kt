@@ -85,6 +85,63 @@ class NumberFormatterTest {
         assertEquals(1L to 7L, NumberFormatter.simplifyRadical(7))
     }
 
+    // -------------------------------------------------- 根号与常数同时出现
+
+    @Test
+    fun `根号与π同时出现时都保留`() {
+        val both = defaults.copy(keepRoot = true, keepSymbols = true)
+        val v = Math.PI * kotlin.math.sqrt(2.0)
+        assertEquals("π√2", NumberFormatter.format(v, both, "π√2"))
+        assertEquals("2π√2", NumberFormatter.format(2 * v, both, "2×π×√2"))
+        assertEquals("2π√2", NumberFormatter.format(2 * v, both, "2π√2"))
+    }
+
+    @Test
+    fun `只开一个开关而符号不足时回落小数`() {
+        val v = Math.PI * kotlin.math.sqrt(2.0)
+        // 需要 π，但"保留特殊符号"没开
+        assertEquals(
+            "4.442882938",
+            NumberFormatter.format(v, defaults.copy(keepRoot = true), "π√2"),
+        )
+        // 需要根号，但"保留根号"没开
+        assertEquals(
+            "4.442882938",
+            NumberFormatter.format(v, defaults.copy(keepSymbols = true), "π√2"),
+        )
+    }
+
+    @Test
+    fun `多个根号相乘会合并成一个`() {
+        val root = defaults.copy(keepRoot = true)
+        assertEquals("√6", NumberFormatter.format(kotlin.math.sqrt(6.0), root, "√2×√3"))
+        // √2×√2 = 2，化简后没有根号可留，走常规格式化
+        assertEquals("2", NumberFormatter.format(2.0, root, "√2×√2"))
+    }
+
+    @Test
+    fun `根号内除以常数同样化到最简`() {
+        val root = defaults.copy(keepRoot = true)
+        // √8÷2 = √2
+        assertEquals("√2", NumberFormatter.format(kotlin.math.sqrt(2.0), root, "√8÷2"))
+    }
+
+    @Test
+    fun `带括号的根号内数字可识别`() {
+        val root = defaults.copy(keepRoot = true)
+        assertEquals("2√2", NumberFormatter.format(kotlin.math.sqrt(8.0), root, "√(8)"))
+    }
+
+    @Test
+    fun `加法表达式不参与符号化`() {
+        val both = defaults.copy(keepRoot = true, keepSymbols = true)
+        // 1+√2 不是纯因子乘积，回落小数
+        assertEquals(
+            "2.414213562",
+            NumberFormatter.format(1 + kotlin.math.sqrt(2.0), both, "1+√2"),
+        )
+    }
+
     @Test
     fun `非有限值不会崩`() {
         assertEquals("NaN", NumberFormatter.format(Double.NaN, defaults))
