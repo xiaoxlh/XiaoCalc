@@ -5,10 +5,12 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.text.font.FontWeight
 import com.example.xiaocalc.adaptive.WatchLayout
 import com.example.xiaocalc.adaptive.Zone
 import com.example.xiaocalc.adaptive.scaled
@@ -52,6 +54,11 @@ fun ActionBar(
                 hapticsEnabled = hapticsEnabled,
                 onKey = onKey,
                 glyphOverride = "C",
+                // "清空"是不可逆操作，按 M3 的 error 角色给足强调。
+                // 与运算符的砖红(#6B1D1D)刻意区分：这里更亮，且文字接近白色。
+                containerOverride = MaterialTheme.colorScheme.errorContainer,
+                contentOverride = MaterialTheme.colorScheme.onErrorContainer,
+                fontWeightOverride = FontWeight.Bold,
             )
             CalcKeyButton(
                 key = CalcKey.Backspace,
@@ -84,8 +91,9 @@ fun ActionBar(
 /**
  * 分页胶囊。
  *
- * 选中态直接用主色填充并复用一个普通动作键的形状——这样它和 `C` / `⌫`
- * 在视觉上属于同一排，同时"当前在哪一页"一眼可见。
+ * 与 [CalcKeyButton] 的区别**刻意做在形状上**：这里用 50% 圆角的胶囊形，
+ * 普通按键是 32% 圆角的矩形。只靠颜色区分不够——未选中的胶囊底色
+ * (surfaceContainerHigh) 与函数键完全相同，光看颜色根本分不出哪个是"翻页"。
  */
 @Composable
 private fun PageChip(
@@ -107,6 +115,8 @@ private fun PageChip(
             onClick()
         },
         glyphOverride = label,
+        shape = RoundedCornerShape(percent = CHIP_CORNER_PERCENT),
+        fontWeightOverride = if (selected) FontWeight.Bold else FontWeight.Medium,
         containerOverride = if (selected) {
             MaterialTheme.colorScheme.primary
         } else {

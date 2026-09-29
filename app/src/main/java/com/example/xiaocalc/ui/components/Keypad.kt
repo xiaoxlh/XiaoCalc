@@ -33,6 +33,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.lerp
 import androidx.compose.ui.graphics.vector.ImageVector
@@ -43,6 +44,7 @@ import com.example.xiaocalc.adaptive.KeyRow
 import com.example.xiaocalc.adaptive.WatchLayout
 import com.example.xiaocalc.adaptive.scaled
 import com.example.xiaocalc.adaptive.scaledSp
+import com.example.xiaocalc.calc.AngleUnit
 import com.example.xiaocalc.calc.CalcKey
 import com.example.xiaocalc.calc.KeyKind
 import com.example.xiaocalc.calc.KeypadPage
@@ -64,6 +66,8 @@ fun Keypad(
     hapticsEnabled: Boolean,
     onKey: (CalcKey) -> Unit,
     modifier: Modifier = Modifier,
+    /** 当前角度单位，只用于让 `deg` / `rad` 键的标签反映真实状态 */
+    angleUnit: AngleUnit = AngleUnit.DEG,
 ) {
     val gap = scaled(WatchLayout.KEY_GAP)
     val totalHeight = scaled(
@@ -113,6 +117,7 @@ fun Keypad(
                                 heightDu = row.height,
                                 hapticsEnabled = hapticsEnabled,
                                 onKey = onKey,
+                                glyphOverride = key.dynamicGlyph(angleUnit),
                             )
                         }
                     }
@@ -143,6 +148,9 @@ fun CalcKeyButton(
     containerOverride: Color? = null,
     contentOverride: Color? = null,
     fontSizeOverride: TextUnit? = null,
+    /** 形状覆盖：分页胶囊用胶囊形，与普通键的圆角矩形区分开 */
+    shape: Shape = RoundedCornerShape(percent = KEY_CORNER_PERCENT),
+    fontWeightOverride: FontWeight? = null,
 ) {
     val haptics = rememberKeyHaptics(hapticsEnabled)
     val interaction = remember { MutableInteractionSource() }
@@ -170,7 +178,7 @@ fun CalcKeyButton(
                 scaleX = scale
                 scaleY = scale
             }
-            .clip(RoundedCornerShape(percent = KEY_CORNER_PERCENT))
+            .clip(shape)
             .background(animatedContainer)
             .clickable(
                 interactionSource = interaction,
@@ -200,7 +208,8 @@ fun CalcKeyButton(
             fontSize = fontSizeOverride ?: scaledSp(
                 labelFontDu(key, minOf(widthDu, heightDu)),
             ),
-            fontWeight = if (key.kind == KeyKind.EQUALS) FontWeight.Bold else FontWeight.Medium,
+            fontWeight = fontWeightOverride
+                ?: if (key.kind == KeyKind.EQUALS) FontWeight.Bold else FontWeight.Medium,
             style = NumTextStyle,
             maxLines = 1,
         )
@@ -216,14 +225,19 @@ private fun labelFontDu(key: CalcKey, shortestDu: Float): Float = when (key.labe
 
 @Composable
 internal fun keyContainerColor(key: CalcKey): Color = when (key.kind) {
+    // 三级中性色阶，按"按压频次"分层——数字 > 函数 > 工具。
+    // 函数键原先用 surfaceContainer(#1B1B1B)，在纯黑底上只比背景亮一点点，
+    // 于是函数页整体发闷、反倒是几个红色运算符"跳"出来，看着像随机高亮。
     // 数字键最亮：最常按的一层
     KeyKind.DIGIT -> MaterialTheme.colorScheme.surfaceContainerHighest
     // 运算符用品牌红的容器色，语义与"结果强调"呼应
     KeyKind.OPERATOR -> MaterialTheme.colorScheme.secondaryContainer
-    KeyKind.FUNCTION -> MaterialTheme.colorScheme.surfaceContainer
+    // 函数键比工具键亮一档：它们是函数页的主体内容
+    KeyKind.FUNCTION -> MaterialTheme.colorScheme.surfaceContainerHigh
     // "=" 是主操作，直接填充品牌红
     KeyKind.EQUALS -> MaterialTheme.colorScheme.secondary
-    KeyKind.ACTION -> MaterialTheme.colorScheme.surfaceContainerHigh
+    // 工具键（C / ⌫ / 未选中的分页）下沉，不与内容抢注意力
+    KeyKind.ACTION -> MaterialTheme.colorScheme.surfaceContainer
 }
 
 @Composable
@@ -237,3 +251,18 @@ internal fun keyContentColor(key: CalcKey): Color = when (key.kind) {
 
 /** 圆角半径按短边的百分比取，宽键与窄键的观感才一致 */
 private const val KEY_CORNER_PERCENT = 32
+
+/** 分页胶囊：50% 圆角 = 胶囊形，用形状把"导航"与"按键"区分开 */
+internal const val CHIP_CORNER_PERCENT = 50
+
+/**
+ * 标签需要随状态变化的键。
+ *
+ * 角度单位键原先键面写死 "deg"，切换后毫无变化——功能其实是好的
+ * （`CalculatorState` 里有 `toggleAngleUnit()` 分支），但**按下去看不到任何反馈**，
+ * 用户自然会认为按键坏了。改成显示**当前**单位，按下当场变化即是最直接的反馈。
+ */
+private fun CalcKey.dynamicGlyph(angleUnit: AngleUnit): String? = when (this) {
+    CalcKey.AngleUnit -> if (angleUnit == AngleUnit.DEG) "deg" else "rad"
+    else -> null
+}

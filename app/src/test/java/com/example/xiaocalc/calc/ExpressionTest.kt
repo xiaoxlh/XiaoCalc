@@ -64,6 +64,39 @@ class ExpressionTest {
         assertEquals(0.5, eval("sin30", AngleUnit.DEG), 1e-9)
     }
 
+    // ---------------------------------------------------------------- 对数
+
+    @Test
+    fun `自然对数`() {
+        assertEquals(0.0, eval("ln(1)"), 1e-9)
+        assertEquals(1.0, eval("ln(e)"), 1e-9)
+        assertEquals(kotlin.math.ln(10.0), eval("ln(10)"), 1e-9)
+        // 省略括号
+        assertEquals(kotlin.math.ln(2.0), eval("ln2"), 1e-9)
+    }
+
+    @Test
+    fun `对数与角度单位无关`() {
+        // 角度换算只对三角函数成立。若把 toRadians 提前套给所有函数，
+        // 这一条会挂——这正是把换算值留到各分支里取的原因。
+        assertEquals(
+            kotlin.math.ln(5.0),
+            eval("ln(5)", AngleUnit.RAD),
+            1e-9,
+        )
+        assertEquals(
+            kotlin.math.ln(5.0),
+            eval("ln(5)", AngleUnit.DEG),
+            1e-9,
+        )
+    }
+
+    @Test
+    fun `自然对数定义域`() {
+        assertEquals(CalcError.NOT_FINITE, error("ln(0)"))
+        assertEquals(CalcError.NOT_FINITE, error("ln(-1)"))
+    }
+
     // ---------------------------------------------------------------- 百分号
 
     @Test

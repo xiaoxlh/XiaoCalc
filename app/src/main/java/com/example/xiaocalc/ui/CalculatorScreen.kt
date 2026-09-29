@@ -151,6 +151,8 @@ fun CalculatorScreen(
                 rows = layout.keyRows,
                 hapticsEnabled = hapticsEnabled,
                 onKey = controller::onKey,
+                // 让 deg / rad 键的标签反映真实状态——它没有别的反馈方式
+                angleUnit = controller.settings.angleUnit,
                 // 滑动只是换页快捷方式；显式入口是底部操作行的 123 / fx
                 modifier = Modifier.pointerInput(Unit) {
                     val threshold = 48f * density

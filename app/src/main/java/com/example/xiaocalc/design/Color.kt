@@ -24,7 +24,7 @@ val XiaoCalcDarkColorScheme = darkColorScheme(
     // 次色：品牌红 —— "=" 键填充、运算符文字与容器
     secondary = BrandRed,
     onSecondary = Color.White,
-    secondaryContainer = Color(0xFF481616),
+    secondaryContainer = Color(0xFF6B1D1D),
     onSecondaryContainer = Color(0xFFFFB4B4),
 
     // 第三色：用于滚动条等辅助指示

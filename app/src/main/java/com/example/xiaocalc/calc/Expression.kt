@@ -4,6 +4,7 @@ import kotlin.math.E
 import kotlin.math.PI
 import kotlin.math.abs
 import kotlin.math.cos
+import kotlin.math.ln
 import kotlin.math.pow
 import kotlin.math.sin
 import kotlin.math.sqrt
@@ -101,7 +102,7 @@ class ExpressionEvaluator(
                     while (i < text.length && text[i].isLetter() && text[i] != 'π') i++
                     val name = text.substring(start, i).lowercase()
                     when (name) {
-                        "sin", "cos", "tan" -> out += Token(Kind.FUNC, start, name = name)
+                        "sin", "cos", "tan", "ln" -> out += Token(Kind.FUNC, start, name = name)
                         "mod" -> out += Token(Kind.MOD, start)
                         "pi" -> out += Token(Kind.CONST, start, name = "pi")
                         "e" -> out += Token(Kind.CONST, start, name = "e")
@@ -301,6 +302,8 @@ class ExpressionEvaluator(
             // 允许省略括号：sin30、cosπ
             unary()
         }
+        // 角度换算只对三角函数成立；`ln` 之类的函数与角度单位无关，
+        // 因此换算值留在各分支里取，不能提前算好套给所有函数。
         val radians = if (angleUnit == AngleUnit.DEG) Math.toRadians(argument) else argument
         return when (token.name) {
             "sin" -> sin(radians)
@@ -308,6 +311,11 @@ class ExpressionEvaluator(
             "tan" -> {
                 if (abs(cos(radians)) < 1e-12) throw CalcException(CalcError.NOT_FINITE, token.pos)
                 tan(radians)
+            }
+            // 自然对数定义域为 (0, +∞)，越界按"结果非有限"报错
+            "ln" -> {
+                if (argument <= 0.0) throw CalcException(CalcError.NOT_FINITE, token.pos)
+                ln(argument)
             }
             else -> throw CalcException(CalcError.UNKNOWN_FUNCTION, token.pos)
         }
