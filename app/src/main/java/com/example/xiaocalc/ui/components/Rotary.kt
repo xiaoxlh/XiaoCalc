@@ -66,8 +66,12 @@ const val ROTARY_DIRECTION = -1f
  */
 const val PIXELS_PER_DETENT = 10f
 
-/** 单次事件最多折算多少档。快速旋转时单次事件可达 20+ 档（实测峰值 27），须封顶 */
-const val MAX_DETENTS_PER_EVENT = 6f
+/**
+ * 单次事件最多折算多少档。快速旋转时单次事件可达 20+ 档（实测峰值 27），须封顶。
+ *
+ * 真机手感校准：6 时快转仍偏快，收到 4。
+ */
+const val MAX_DETENTS_PER_EVENT = 4f
 
 /**
  * 单次事件上限。

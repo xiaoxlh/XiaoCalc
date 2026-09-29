@@ -35,8 +35,8 @@ android {
         applicationId = "com.example.xiaocalc"
         minSdk = 26 // Android 8.0，Wear OS 2/3/4 均覆盖
         targetSdk = 34
-        versionCode = 4
-        versionName = "1.1.1"
+        versionCode = 5
+        versionName = "1.1.2"
     }
 
     buildTypes {
