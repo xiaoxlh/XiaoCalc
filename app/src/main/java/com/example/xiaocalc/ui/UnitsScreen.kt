@@ -152,7 +152,7 @@ fun UnitsScreen(
             )
 
             // ------------------------------------------------------ 单位选择行
-            val pickerZone = layout.pickerRow
+            val pickerZone = layout.extraRow
             if (pickerZone != null) {
                 Spacer(Modifier.height(scaled(pickerZone.top - layout.header.bottom)))
                 val gap = WatchLayout.KEY_GAP

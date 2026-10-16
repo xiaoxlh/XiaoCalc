@@ -16,6 +16,8 @@ import com.example.xiaocalc.calc.AngleUnit
 import com.example.xiaocalc.calc.CalcKey
 import com.example.xiaocalc.calc.CalcSettings
 import com.example.xiaocalc.calc.CalculatorState
+import com.example.xiaocalc.calc.EquationMode
+import com.example.xiaocalc.calc.EquationState
 import com.example.xiaocalc.calc.HistoryEntry
 import com.example.xiaocalc.calc.InMemoryHistoryStore
 import com.example.xiaocalc.calc.InMemorySettingsStore
@@ -267,6 +269,46 @@ class WatchScreenshotTest {
                 c == '-' -> onKey(CalcKey.Minus)
             }
         }
+    }
+
+    // ------------------------------------------------------------------ 方程
+
+    private fun equationState(text: String, mode: EquationMode = EquationMode.SINGLE): EquationState {
+        val state = EquationState()
+        if (mode != EquationMode.SINGLE) state.toggleMode()
+        state.insert(text)
+        return state
+    }
+
+    private fun equationSnapshot(name: String, state: EquationState) = snapshot(name) {
+        EquationScreen(
+            state = state,
+            settings = CalcSettings(),
+            time = "10:24",
+            hapticsEnabled = false,
+            onNavigate = {},
+        )
+    }
+
+    @Test
+    fun equation_quadratic() {
+        equationSnapshot("equation_quadratic", equationState("x^2-3x+2=0"))
+    }
+
+    @Test
+    fun equation_radical() {
+        // 精确根式是这一页的核心价值，必须单独拍一张确认它真的显示成 √2
+        equationSnapshot("equation_radical", equationState("x^2-2x-1=0"))
+    }
+
+    @Test
+    fun equation_complex() {
+        equationSnapshot("equation_complex", equationState("x^2+2x+5=0"))
+    }
+
+    @Test
+    fun equation_system() {
+        equationSnapshot("equation_system", equationState("x+y=3;2x-y=0", EquationMode.SYSTEM))
     }
 
     // ------------------------------------------------------------------ 动效

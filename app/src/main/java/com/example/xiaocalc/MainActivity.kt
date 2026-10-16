@@ -33,6 +33,7 @@ import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.WindowInsetsControllerCompat
 import com.example.xiaocalc.adaptive.WatchFrame
 import com.example.xiaocalc.calc.CalculatorState
+import com.example.xiaocalc.calc.EquationState
 import com.example.xiaocalc.calc.SharedPreferencesStores
 import com.example.xiaocalc.calc.Stores
 import com.example.xiaocalc.calc.UnitConverterState
@@ -41,6 +42,7 @@ import com.example.xiaocalc.design.XiaoCalcTheme
 import com.example.xiaocalc.ui.AppPage
 import com.example.xiaocalc.ui.CalculatorScreen
 import com.example.xiaocalc.ui.DiagnosticsScreen
+import com.example.xiaocalc.ui.EquationScreen
 import com.example.xiaocalc.ui.HistoryScreen
 import com.example.xiaocalc.ui.SettingsScreen
 import com.example.xiaocalc.ui.UnitsScreen
@@ -129,6 +131,9 @@ private fun XiaoCalcApp(stores: Stores, welcomeCompleted: Boolean) {    // 计�
     // 换算页状态独立于计算器：换算是另一件事，共用会让"换算页按 C"清掉计算器里的式子
     val converter = remember { UnitConverterState() }
 
+    // 方程页同理：它与计算器共用键盘，但输入的是另一类东西（含未知数的等式）
+    val equation = remember { EquationState() }
+
     var page by rememberSaveable {
         mutableStateOf(if (welcomeCompleted) AppPage.CALCULATOR else AppPage.WELCOME)
     }
@@ -216,6 +221,13 @@ private fun XiaoCalcApp(stores: Stores, welcomeCompleted: Boolean) {    // 计�
                 )
                 AppPage.UNITS -> UnitsScreen(
                     converter = converter,
+                    settings = controller.settings,
+                    time = time,
+                    hapticsEnabled = controller.settings.haptics,
+                    onNavigate = { page = it },
+                )
+                AppPage.EQUATION -> EquationScreen(
+                    state = equation,
                     settings = controller.settings,
                     time = time,
                     hapticsEnabled = controller.settings.haptics,

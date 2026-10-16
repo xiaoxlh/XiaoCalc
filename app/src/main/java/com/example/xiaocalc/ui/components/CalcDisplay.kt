@@ -62,6 +62,13 @@ fun CalcDisplay(
     /** 结果行的横向滚动状态；同上 */
     resultScroll: ScrollState,
     modifier: Modifier = Modifier,
+    /**
+     * 结果行的前缀。默认 `= `（计算器的"结果是"语义）。
+     *
+     * 方程页把它设为空串：那里结果本身写成 `x = 1, 2`，
+     * 再叠一个前缀会变成 `= x = 1, 2`——两个等号，读起来是错的。
+     */
+    resultPrefix: String = "= ",
 ) {
     val errorColor = MaterialTheme.colorScheme.error
     val resultColor = MaterialTheme.colorScheme.onBackground
@@ -114,7 +121,7 @@ fun CalcDisplay(
 
         // ---- 第 2 行：结果 / 错误 ----
         val visual = ResultVisual(
-            text = errorMessage ?: if (result.isEmpty()) "" else "= $result",
+            text = errorMessage ?: if (result.isEmpty()) "" else "$resultPrefix$result",
             isError = errorMessage != null,
         )
         BoxWithConstraints(

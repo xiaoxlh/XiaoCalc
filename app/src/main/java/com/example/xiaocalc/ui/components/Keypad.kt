@@ -76,6 +76,12 @@ fun Keypad(
      * 键的**语义**仍由调用方在 `onKey` 里解释，这里只改显示。
      */
     glyphOverrides: Map<CalcKey, String> = emptyMap(),
+    /**
+     * 覆盖键位内容。为 null 时按 [page] 取默认键盘。
+     *
+     * 方程页据此复用同一套几何，只换掉键位表——不必为它复制一份布局代码。
+     */
+    keysOverride: List<CalcKey>? = null,
 ) {
     val gap = scaled(WatchLayout.KEY_GAP)
     val totalHeight = scaled(
@@ -107,7 +113,7 @@ fun Keypad(
             },
             label = "keypadPage",
         ) { target ->
-            val keys = keypadFor(target)
+            val keys = keysOverride ?: keypadFor(target)
             Column(
                 modifier = Modifier.width(widestRow),
                 verticalArrangement = Arrangement.spacedBy(gap),

@@ -72,13 +72,16 @@ data class WatchLayout(
     /** 子页面（历史 / 设置 / 欢迎）的可滚动内容区 */
     val content: Zone,
     /**
-     * 单位换算页的"单位选择行"。
+     * 显示区之上的"额外操作行"。
      *
-     * 只有 [WatchLayout.units] 产出的布局才非空。标准布局里它是 null——
-     * 刻意不做成"高度为 0 的分区"，那样调用方仍会以为这一行存在，
-     * 而 [Zone] 本身也要求高度为正。
+     * 只有 [WatchLayout.units] 与 [WatchLayout.equation] 产出的布局才非空：
+     * 前者在这里放"类别 / 起算单位 / 目标单位"三个选择器，
+     * 后者放 `^ ( ) =` 四个符号键。
+     *
+     * 标准布局里它是 null——刻意不做成"高度为 0 的分区"，
+     * 那样调用方仍会以为这一行存在，而 [Zone] 本身也要求高度为正。
      */
-    val pickerRow: Zone? = null,
+    val extraRow: Zone? = null,
 ) {
     val keypadColumns: Int get() = keyRows.firstOrNull()?.columns ?: WatchLayout.COLUMNS
     val keypadRows: Int get() = keyRows.size
@@ -173,18 +176,21 @@ data class WatchLayout(
         fun of(round: Boolean): WatchLayout = if (round) roundLayout() else squareLayout()
 
         /**
-         * 单位换算页的布局。
+         * 带"额外操作行"的布局，供单位换算页与方程页共用。
          *
-         * 与 [of] 的唯一区别是多出 [WatchLayout.pickerRow]，
-         * 并由它把显示区与键盘整体下移。顶栏、操作行、子页面内容区三者保持原位——
-         * 这样从计算器切到单位页时，时钟与底部按钮**不会跳**，换页看起来才稳。
+         * 与 [of] 的唯一区别是多出 [WatchLayout.extraRow]，并由它把显示区与键盘整体下移。
+         * 顶栏、操作行、子页面内容区三者保持原位——这样在页面间切换时，
+         * 时钟与底部按钮**不会跳**，换页看起来才稳。
+         *
+         * 两个页面共用同一套几何，是有意的：它们在结构上确实是同一种页面
+         * （顶栏 + 一行操作 + 显示区 + 键盘 + 底栏），差别只在那一行里放什么。
          */
-        fun units(round: Boolean): WatchLayout = if (round) {
+        private fun withExtraRow(round: Boolean): WatchLayout = if (round) {
             WatchLayout(
                 round = true,
                 sideMargin = 0f,
                 header = band(R_HEADER_TOP, R_HEADER_HEIGHT),
-                pickerRow = band(U_PICKER_TOP, U_PICKER_HEIGHT),
+                extraRow = band(U_PICKER_TOP, U_PICKER_HEIGHT),
                 display = band(U_DISPLAY_TOP, U_DISPLAY_HEIGHT),
                 keypad = band(U_KEYPAD_TOP, U_KEYPAD_HEIGHT),
                 keyRows = roundKeyRows(U_KEYPAD_TOP, U_KEYPAD_HEIGHT),
@@ -197,7 +203,7 @@ data class WatchLayout(
                 round = false,
                 sideMargin = S_MARGIN,
                 header = Zone(S_HEADER_TOP, S_HEADER_HEIGHT, available),
-                pickerRow = Zone(SU_PICKER_TOP, SU_PICKER_HEIGHT, available),
+                extraRow = Zone(SU_PICKER_TOP, SU_PICKER_HEIGHT, available),
                 display = Zone(SU_DISPLAY_TOP, SU_DISPLAY_HEIGHT, available),
                 keypad = Zone(SU_KEYPAD_TOP, SU_KEYPAD_HEIGHT, available),
                 keyRows = squareKeyRows(SU_KEYPAD_TOP, SU_KEYPAD_HEIGHT, available),
@@ -209,6 +215,12 @@ data class WatchLayout(
                 content = Zone(S_CONTENT_TOP, S_CONTENT_HEIGHT, available),
             )
         }
+
+        /** 单位换算页：额外行里放"类别 / 起算单位 / 目标单位"三个选择器 */
+        fun units(round: Boolean): WatchLayout = withExtraRow(round)
+
+        /** 方程页：额外行里放 `^ ( ) =` 四个符号键 */
+        fun equation(round: Boolean): WatchLayout = withExtraRow(round)
 
         private fun roundLayout(): WatchLayout = WatchLayout(
             round = true,

@@ -55,6 +55,23 @@ sealed class CalcKey(
     object Equals : CalcKey("=", KeyKind.EQUALS)
 
     /**
+     * 未知数 `x`。
+     *
+     * 只出现在方程页的键盘上。主计算器不提供它——那里 `x` 没有取值，
+     * 求值器会（正确地）报"未知函数"。
+     */
+    object VariableX : CalcKey("x", KeyKind.DIGIT, "x")
+
+    /**
+     * 字面等号，用于**书写**等式。
+     *
+     * 与 [Equals] 的语义完全不同：后者的含义是"求值"，是主操作（亮红填充）；
+     * 这个只是往表达式里插入一个 `=` 字符。因此配色按数字键处理，
+     * 避免把"输入字符"和"执行计算"混为一谈。
+     */
+    object EqualsSign : CalcKey("=", KeyKind.DIGIT, "=")
+
+    /**
      * 顶栏动作键的 label 只用于无障碍朗读（键盘本身不渲染它们）。
      * 刻意不用 `⌫` 字形：MiSans 不含 U+232B，见 ui/components/Icons.kt。
      */
@@ -98,3 +115,18 @@ fun keypadFor(page: KeypadPage): List<CalcKey> = when (page) {
     KeypadPage.MAIN -> MainKeypad
     KeypadPage.FUNCTIONS -> FunctionKeypad
 }
+
+/**
+ * 方程页键盘。
+ *
+ * 与主键盘的唯一区别是：`=` 让位给未知数 `x`。
+ * 解方程时结果是**实时**呈现的（输入合法即出根），不需要一个"求值"确认键；
+ * 而字面等号 `=` 由额外操作行提供。于是 16 个格位正好覆盖
+ * 数字、小数点、`x` 与四则运算。
+ */
+val EquationKeypad: List<CalcKey> = listOf(
+    CalcKey.Digit('7'), CalcKey.Digit('8'), CalcKey.Digit('9'), CalcKey.Divide,
+    CalcKey.Digit('4'), CalcKey.Digit('5'), CalcKey.Digit('6'), CalcKey.Times,
+    CalcKey.Digit('1'), CalcKey.Digit('2'), CalcKey.Digit('3'), CalcKey.Minus,
+    CalcKey.Digit('0'), CalcKey.Dot, CalcKey.VariableX, CalcKey.Plus,
+)
