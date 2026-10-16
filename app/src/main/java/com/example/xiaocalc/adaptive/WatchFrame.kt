@@ -21,7 +21,7 @@ import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.composed
-import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.TextUnit
@@ -80,10 +80,11 @@ fun WatchFrame(
     forceRound: Boolean? = null,
     content: @Composable BoxScope.() -> Unit,
 ) {
-    val context = LocalContext.current
-    val detectedRound = remember(context) {
-        runCatching { context.resources.configuration.isScreenRound }.getOrDefault(false)
-    }
+    // 用 LocalConfiguration 而不是 LocalContext.current.resources.configuration：
+    // 后者在 Compose 1.10 起被判定为"绕过 Compose 的配置感知"——
+    // 直接读 Context 不会随配置变化触发重组，而 LocalConfiguration 会。
+    val configuration = LocalConfiguration.current
+    val detectedRound = configuration.isScreenRound
     val round = forceRound ?: detectedRound
     val layout = remember(round) { WatchLayout.of(round) }
 

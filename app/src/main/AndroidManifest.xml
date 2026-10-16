@@ -3,12 +3,18 @@
     xmlns:tools="http://schemas.android.com/tools">
 
     <!--
-      面向圆形表盘的安卓手表计算器：声明手表硬件但不设为必需，
-      因此同一份 APK 仍可侧载到手机 / 方形手表上调试。
+      面向圆形表盘的安卓手表计算器。
+
+      `required="false"` 是**刻意**的：同一份 APK 要能侧载到方形手表上调试
+      （Paparazzi 的方屏截图测试与开发期的手机都走这条路径）。
+      lint 的 InvalidWearFeatureAttribute 认为"Wear 与非 Wear 共用一份 APK 不受支持"——
+      这在 Play 上架场景下成立，但本应用只做侧载分发，因此显式豁免并在此说明理由，
+      而不是无声地关掉整条检查。
     -->
     <uses-feature
         android:name="android.hardware.type.watch"
-        android:required="false" />
+        android:required="false"
+        tools:ignore="InvalidWearFeatureAttribute" />
 
     <application
         android:allowBackup="true"
@@ -19,10 +25,14 @@
         android:theme="@style/Theme.XiaoCalc"
         tools:targetApi="31">
 
+        <!-- 没有手机伴侣应用，装上即可独立使用 -->
+        <meta-data
+            android:name="com.google.android.wearable.standalone"
+            android:value="true" />
+
         <activity
             android:name=".MainActivity"
             android:exported="true"
-            android:label="@string/app_name"
             android:theme="@style/Theme.XiaoCalc">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />

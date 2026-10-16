@@ -71,6 +71,20 @@ android {
     testOptions {
         unitTests.isReturnDefaultValues = true
     }
+
+    lint {
+        /**
+         * `local.properties` 由 Android Studio / AGP 自动生成且**不入库**（见 .gitignore），
+         * 它在 Windows 上写的是未转义的 `sdk.dir=C:\Users\...`。
+         * 这是本机工具生成的机器相关文件，不是本项目的代码问题，故关掉该检查。
+         *
+         * 除它之外没有关闭任何其它检查——把 lint 的其余部分保持打开，
+         * 是因为 `check` 现在会跑它（见文件末尾把 verifyPaparazziDebug 挂到 check 上）。
+         */
+        disable += "PropertyEscape"
+        warningsAsErrors = false
+        abortOnError = true
+    }
 }
 
 // Kotlin 2.3 起 `android { kotlinOptions { jvmTarget } }` 已被移除，
