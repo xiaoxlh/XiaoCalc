@@ -66,7 +66,9 @@ import com.example.xiaocalc.ui.components.WatchScrollIndicator
 import com.example.xiaocalc.ui.components.rememberKeyHaptics
 
 private const val POLICY =
-    "XiaoCalc 为离线应用，不联网、不收集您的任何信息。\n\n" +
+    "XiaoCalc 默认离线运行，不收集您的任何信息。\n" +
+        "唯一的联网功能是货币汇率：只在你于货币页点「更新」并明确同意后才请求，" +
+        "请求只带货币代码，且可随时在设置中撤销。\n\n" +
         "使用时请遵守所在地法律法规，勿将本应用用于精密计算场景，\n" +
         "勿在禁止使用计算器的场合使用；由此造成的后果由您自行承担。\n\n" +
         "继续使用即表示您已阅读并同意以上内容。"
