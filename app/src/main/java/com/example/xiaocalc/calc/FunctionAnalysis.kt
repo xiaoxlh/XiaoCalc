@@ -150,7 +150,9 @@ object FunctionAnalysis {
             out += NotablePoint(
                 kind = PointKind.ZERO,
                 x = root.value,
-                y = poly.evaluate(root.value),
+                // y 按定义就是 0。不要写 poly.evaluate(root)：精确根是 50 位小数的近似，
+                // 代入后得到的是 1e-49 这种尾巴，显示出来只会让人困惑
+                y = BigDecimal.ZERO,
                 exactX = root.exact,
             )
         }

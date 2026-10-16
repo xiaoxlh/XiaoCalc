@@ -233,6 +233,10 @@ fun CalculatorScreen(
                     menuOpen = false
                     onNavigate(AppPage.EQUATION)
                 },
+                onGraph = {
+                    menuOpen = false
+                    onNavigate(AppPage.GRAPH)
+                },
                 onHistory = {
                     menuOpen = false
                     onNavigate(AppPage.HISTORY)
@@ -253,6 +257,7 @@ fun CalculatorScreen(
 private fun CalculatorMenu(
     onUnits: () -> Unit,
     onEquation: () -> Unit,
+    onGraph: () -> Unit,
     onHistory: () -> Unit,
     onSettings: () -> Unit,
     topPadding: Dp,
@@ -269,6 +274,7 @@ private fun CalculatorMenu(
     ) {
         Column(Modifier.padding(vertical = scaled(6f))) {
             MenuItem("解方程", onEquation)
+            MenuItem("函数图像", onGraph)
             MenuItem("单位换算", onUnits)
             MenuItem("历史记录", onHistory)
             MenuItem("设置", onSettings)

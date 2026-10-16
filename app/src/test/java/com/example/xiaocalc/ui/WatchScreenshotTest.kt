@@ -18,6 +18,7 @@ import com.example.xiaocalc.calc.CalcSettings
 import com.example.xiaocalc.calc.CalculatorState
 import com.example.xiaocalc.calc.EquationMode
 import com.example.xiaocalc.calc.EquationState
+import com.example.xiaocalc.calc.GraphState
 import com.example.xiaocalc.calc.HistoryEntry
 import com.example.xiaocalc.calc.InMemoryHistoryStore
 import com.example.xiaocalc.calc.InMemorySettingsStore
@@ -339,6 +340,65 @@ class WatchScreenshotTest {
     @Test
     fun equation_system() {
         equationSnapshot("equation_system", equationState("x+y=3;2x-y=0", EquationMode.SYSTEM))
+    }
+
+    // ------------------------------------------------------------------ 图像
+
+    private fun graphState(text: String, graphing: Boolean = false): GraphState {
+        val state = GraphState()
+        state.insert(text)
+        if (graphing) state.enterGraph()
+        return state
+    }
+
+    private fun graphSnapshot(name: String, state: GraphState) = snapshot(name) {
+        GraphScreen(
+            state = state,
+            settings = CalcSettings(),
+            time = "10:24",
+            hapticsEnabled = false,
+            onNavigate = {},
+        )
+    }
+
+    @Test
+    fun graph_input() {
+        graphSnapshot("graph_input", graphState("x^2-2"))
+    }
+
+    @Test
+    fun graph_parabola() {
+        graphSnapshot("graph_parabola", graphState("x^2-2", graphing = true))
+    }
+
+    @Test
+    fun graph_cubic() {
+        graphSnapshot("graph_cubic", graphState("x^3-3x", graphing = true))
+    }
+
+    /**
+     * 非多项式：验证数值路线画出来的曲线（零点与极值都靠二分求得）。
+     *
+     * 用弧度制：角度制下 `[-10,10]` 只有 10°，`sin(x°) ≈ x·π/180` 本就近似线性，
+     * 画出来接近一条直线——那是**正确**的（真实图形计算器同样如此），
+     * 只是不适合用来验证波形绘制。角度制的情形由范围行的 `deg` 标记提示。
+     */
+    @Test
+    fun graph_sine() {
+        paparazzi.unsafeUpdateConfig(deviceConfig = roundWatch)
+        paparazzi.snapshot(name = "graph_sine") {
+            XiaoCalcTheme {
+                WatchFrame(modifier = Modifier.fillMaxSize()) {
+                    GraphScreen(
+                        state = graphState("sin(x)", graphing = true),
+                        settings = CalcSettings(angleUnit = AngleUnit.RAD),
+                        time = "10:24",
+                        hapticsEnabled = false,
+                        onNavigate = {},
+                    )
+                }
+            }
+        }
     }
 
     // ------------------------------------------------------------------ 动效
