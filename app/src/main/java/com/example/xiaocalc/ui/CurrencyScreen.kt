@@ -201,15 +201,21 @@ fun CurrencyScreen(
             }
 
             // ---------------------------------------------------------- 显示区
+            // 只有**真正的错误**（算式有误、请求失败）才走 CalcDisplay 的 error 槽——
+            // 那里是红色粗体，用来提示"还没有汇率"、"正在获取"会让人以为出了问题。
+            // 这类中性状态改走结果槽，用正常的字色显示。
+            val converted = state.convertedText(settings)
+            val errorText = state.inputError(settings)
+                ?: (state.status as? RateStatus.Failed)?.reason
             CalcDisplay(
                 expression = if (state.input.isEmpty()) "" else "${state.input} ${state.from.code}",
-                result = state.convertedText(settings)
-                    ?.let { "$it ${state.to.code}" }
-                    .orEmpty(),
-                errorMessage = statusMessage(state, settings),
+                result = converted?.let { "$it ${state.to.code}" }
+                    ?: if (errorText == null) hintText(state) else "",
+                errorMessage = errorText,
                 zone = layout.display,
                 expressionScroll = expressionScroll,
                 resultScroll = expressionScroll,
+                resultPrefix = if (converted != null) "= " else "",
             )
 
             // ------------------------------------------------------------ 键盘
@@ -274,16 +280,17 @@ fun CurrencyScreen(
     }
 }
 
-/** 状态 → 显示文案。成功时不打扰，只在没有汇率或出错时说明 */
-private fun statusMessage(state: CurrencyState, settings: CalcSettings): String? {
-    state.inputError(settings)?.let { return it }
-    return when (val status = state.status) {
-        RateStatus.NotAuthorized -> "未授权联网，正在使用缓存汇率"
-        is RateStatus.Loading -> "正在获取…"
-        is RateStatus.Failed -> status.reason
-        RateStatus.Idle, is RateStatus.Updated ->
-            if (state.table == null) "还没有汇率，点下方更新" else null
-    }
+/**
+ * 中性状态提示。
+ *
+ * 这些都不是错误：没有汇率、正在请求、未授权但仍在用缓存。
+ * 它们走结果槽而不是错误槽，以免用红色粗体吓人。
+ */
+private fun hintText(state: CurrencyState): String = when (state.status) {
+    RateStatus.NotAuthorized -> "未授权联网 · 在用缓存汇率"
+    is RateStatus.Loading -> "正在获取…"
+    RateStatus.Idle, is RateStatus.Updated, is RateStatus.Failed ->
+        if (state.table == null) "还没有汇率 · 点下方更新" else ""
 }
 
 /**
