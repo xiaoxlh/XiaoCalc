@@ -71,6 +71,14 @@ data class WatchLayout(
     val actionRow: Zone,
     /** 子页面（历史 / 设置 / 欢迎）的可滚动内容区 */
     val content: Zone,
+    /**
+     * 单位换算页的"单位选择行"。
+     *
+     * 只有 [WatchLayout.units] 产出的布局才非空。标准布局里它是 null——
+     * 刻意不做成"高度为 0 的分区"，那样调用方仍会以为这一行存在，
+     * 而 [Zone] 本身也要求高度为正。
+     */
+    val pickerRow: Zone? = null,
 ) {
     val keypadColumns: Int get() = keyRows.firstOrNull()?.columns ?: WatchLayout.COLUMNS
     val keypadRows: Int get() = keyRows.size
@@ -138,7 +146,69 @@ data class WatchLayout(
         private const val S_CONTENT_TOP = 62f
         private const val S_CONTENT_HEIGHT = 280f
 
+        // ---------------- 单位换算页 ----------------
+        // 比标准布局多一条 44du 的"单位选择行"，代价是键盘与显示区各让出一点。
+        //
+        // 为什么非要多这一行：单位选择器是**主要交互**，必须有可靠的触控目标。
+        // 塞进显示区的话每行只剩约 23du（≈14dp），远低于手表可用的点按尺寸；
+        // 而 44du ≈ 27.5dp 与底部操作行同级，手感一致。
+        private const val U_PICKER_TOP = 58f
+        private const val U_PICKER_HEIGHT = 44f
+        private const val U_DISPLAY_TOP = 104f
+        private const val U_DISPLAY_HEIGHT = 56f
+        private const val U_KEYPAD_TOP = 162f
+        private const val U_KEYPAD_HEIGHT = 144f
+        private const val U_ACTION_TOP = 310f
+        private const val U_ACTION_HEIGHT = 42f
+
+        private const val SU_PICKER_TOP = 60f
+        private const val SU_PICKER_HEIGHT = 44f
+        private const val SU_DISPLAY_TOP = 106f
+        private const val SU_DISPLAY_HEIGHT = 60f
+        private const val SU_KEYPAD_TOP = 168f
+        private const val SU_KEYPAD_HEIGHT = 148f
+        private const val SU_ACTION_TOP = 322f
+        private const val SU_ACTION_HEIGHT = 42f
+
         fun of(round: Boolean): WatchLayout = if (round) roundLayout() else squareLayout()
+
+        /**
+         * 单位换算页的布局。
+         *
+         * 与 [of] 的唯一区别是多出 [WatchLayout.pickerRow]，
+         * 并由它把显示区与键盘整体下移。顶栏、操作行、子页面内容区三者保持原位——
+         * 这样从计算器切到单位页时，时钟与底部按钮**不会跳**，换页看起来才稳。
+         */
+        fun units(round: Boolean): WatchLayout = if (round) {
+            WatchLayout(
+                round = true,
+                sideMargin = 0f,
+                header = band(R_HEADER_TOP, R_HEADER_HEIGHT),
+                pickerRow = band(U_PICKER_TOP, U_PICKER_HEIGHT),
+                display = band(U_DISPLAY_TOP, U_DISPLAY_HEIGHT),
+                keypad = band(U_KEYPAD_TOP, U_KEYPAD_HEIGHT),
+                keyRows = roundKeyRows(U_KEYPAD_TOP, U_KEYPAD_HEIGHT),
+                actionRow = band(U_ACTION_TOP, U_ACTION_HEIGHT),
+                content = band(R_CONTENT_TOP, R_CONTENT_HEIGHT),
+            )
+        } else {
+            val available = Disc.DESIGN - 2f * S_MARGIN
+            WatchLayout(
+                round = false,
+                sideMargin = S_MARGIN,
+                header = Zone(S_HEADER_TOP, S_HEADER_HEIGHT, available),
+                pickerRow = Zone(SU_PICKER_TOP, SU_PICKER_HEIGHT, available),
+                display = Zone(SU_DISPLAY_TOP, SU_DISPLAY_HEIGHT, available),
+                keypad = Zone(SU_KEYPAD_TOP, SU_KEYPAD_HEIGHT, available),
+                keyRows = squareKeyRows(SU_KEYPAD_TOP, SU_KEYPAD_HEIGHT, available),
+                actionRow = Zone(
+                    SU_ACTION_TOP,
+                    SU_ACTION_HEIGHT,
+                    squareGridWidth(SU_KEYPAD_HEIGHT, available),
+                ),
+                content = Zone(S_CONTENT_TOP, S_CONTENT_HEIGHT, available),
+            )
+        }
 
         private fun roundLayout(): WatchLayout = WatchLayout(
             round = true,

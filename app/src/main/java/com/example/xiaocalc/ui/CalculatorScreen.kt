@@ -225,6 +225,10 @@ fun CalculatorScreen(
             modifier = Modifier.align(Alignment.TopEnd),
         ) {
             CalculatorMenu(
+                onUnits = {
+                    menuOpen = false
+                    onNavigate(AppPage.UNITS)
+                },
                 onHistory = {
                     menuOpen = false
                     onNavigate(AppPage.HISTORY)
@@ -243,6 +247,7 @@ fun CalculatorScreen(
 
 @Composable
 private fun CalculatorMenu(
+    onUnits: () -> Unit,
     onHistory: () -> Unit,
     onSettings: () -> Unit,
     topPadding: Dp,
@@ -258,6 +263,7 @@ private fun CalculatorMenu(
         shadowElevation = 6.dp,
     ) {
         Column(Modifier.padding(vertical = scaled(6f))) {
+            MenuItem("单位换算", onUnits)
             MenuItem("历史记录", onHistory)
             MenuItem("设置", onSettings)
         }

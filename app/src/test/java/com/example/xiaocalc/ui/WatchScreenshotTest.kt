@@ -1,6 +1,7 @@
 package com.example.xiaocalc.ui
 
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
@@ -13,11 +14,15 @@ import com.android.resources.ScreenRound
 import com.example.xiaocalc.adaptive.WatchFrame
 import com.example.xiaocalc.calc.AngleUnit
 import com.example.xiaocalc.calc.CalcKey
+import com.example.xiaocalc.calc.CalcSettings
 import com.example.xiaocalc.calc.CalculatorState
 import com.example.xiaocalc.calc.HistoryEntry
 import com.example.xiaocalc.calc.InMemoryHistoryStore
 import com.example.xiaocalc.calc.InMemorySettingsStore
+import com.example.xiaocalc.calc.UnitCategory
+import com.example.xiaocalc.calc.UnitConverterState
 import com.example.xiaocalc.design.XiaoCalcTheme
+import com.example.xiaocalc.ui.components.PickerOverlay
 import org.junit.Rule
 import org.junit.Test
 
@@ -200,6 +205,67 @@ class WatchScreenshotTest {
     fun settings() {
         snapshot("settings") {
             SettingsScreen(controller = state(), time = "10:24", onNavigate = {})
+        }
+    }
+
+    // ------------------------------------------------------------------ 单位换算
+
+    /** 换算页是纵向分段最多的页面（顶栏/选择行/显示区/键盘/操作行），最需要肉眼复核 */
+    @Test
+    fun units_length() {
+        val converter = UnitConverterState()
+        converter.typeDigits("12.5")
+        snapshot("units_length") {
+            UnitsScreen(
+                converter = converter,
+                settings = CalcSettings(),
+                time = "10:24",
+                hapticsEnabled = false,
+                onNavigate = {},
+            )
+        }
+    }
+
+    /** 温度是唯一的仿射换算（带偏移），单独拍一张 */
+    @Test
+    fun units_temperature() {
+        val converter = UnitConverterState()
+        converter.selectCategory(UnitCategory.TEMPERATURE)
+        converter.typeDigits("-40")
+        snapshot("units_temperature") {
+            UnitsScreen(
+                converter = converter,
+                settings = CalcSettings(),
+                time = "10:24",
+                hapticsEnabled = false,
+                onNavigate = {},
+            )
+        }
+    }
+
+    /** 选择器面板：验证它完整落在圆内、四角不被裁掉 */
+    @Test
+    fun units_picker() {
+        snapshot("units_picker") {
+            PickerOverlay(
+                title = "单位类别",
+                options = UnitCategory.entries,
+                selected = UnitCategory.LENGTH,
+                label = { it.label },
+                onSelect = {},
+                onDismiss = {},
+                scrollState = rememberScrollState(),
+            )
+        }
+    }
+
+    private fun UnitConverterState.typeDigits(text: String) {
+        for (c in text) {
+            when {
+                c in '0'..'9' -> onKey(CalcKey.Digit(c))
+                c == '.' -> onKey(CalcKey.Dot)
+                c == '-' -> onKey(CalcKey.Minus)
+            }
         }
     }
 

@@ -68,6 +68,14 @@ fun Keypad(
     modifier: Modifier = Modifier,
     /** 当前角度单位，只用于让 `deg` / `rad` 键的标签反映真实状态 */
     angleUnit: AngleUnit = AngleUnit.DEG,
+    /**
+     * 按键字形覆盖。
+     *
+     * 用于让同一个 [CalcKey] 在不同页面表达不同操作——例如单位换算页把 `=` 换成"换"，
+     * 因为在那里"求值"是无意义的（结果是实时的），而"交换起算/目标单位"才是用户要的。
+     * 键的**语义**仍由调用方在 `onKey` 里解释，这里只改显示。
+     */
+    glyphOverrides: Map<CalcKey, String> = emptyMap(),
 ) {
     val gap = scaled(WatchLayout.KEY_GAP)
     val totalHeight = scaled(
@@ -117,7 +125,7 @@ fun Keypad(
                                 heightDu = row.height,
                                 hapticsEnabled = hapticsEnabled,
                                 onKey = onKey,
-                                glyphOverride = key.dynamicGlyph(angleUnit),
+                                glyphOverride = glyphOverrides[key] ?: key.dynamicGlyph(angleUnit),
                             )
                         }
                     }

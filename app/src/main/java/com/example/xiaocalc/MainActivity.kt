@@ -35,6 +35,7 @@ import com.example.xiaocalc.adaptive.WatchFrame
 import com.example.xiaocalc.calc.CalculatorState
 import com.example.xiaocalc.calc.SharedPreferencesStores
 import com.example.xiaocalc.calc.Stores
+import com.example.xiaocalc.calc.UnitConverterState
 import com.example.xiaocalc.design.Motion
 import com.example.xiaocalc.design.XiaoCalcTheme
 import com.example.xiaocalc.ui.AppPage
@@ -42,6 +43,7 @@ import com.example.xiaocalc.ui.CalculatorScreen
 import com.example.xiaocalc.ui.DiagnosticsScreen
 import com.example.xiaocalc.ui.HistoryScreen
 import com.example.xiaocalc.ui.SettingsScreen
+import com.example.xiaocalc.ui.UnitsScreen
 import com.example.xiaocalc.ui.WelcomeScreen
 import com.example.xiaocalc.ui.components.LocalRotaryHub
 import com.example.xiaocalc.ui.components.RotaryHub
@@ -124,6 +126,9 @@ class MainActivity : ComponentActivity() {
 private fun XiaoCalcApp(stores: Stores, welcomeCompleted: Boolean) {    // 计算状态 + 设置/历史仓库：跨重组保持，仓库负责落盘
     val controller = remember(stores) { CalculatorState(stores, stores) }
 
+    // 换算页状态独立于计算器：换算是另一件事，共用会让"换算页按 C"清掉计算器里的式子
+    val converter = remember { UnitConverterState() }
+
     var page by rememberSaveable {
         mutableStateOf(if (welcomeCompleted) AppPage.CALCULATOR else AppPage.WELCOME)
     }
@@ -205,6 +210,13 @@ private fun XiaoCalcApp(stores: Stores, welcomeCompleted: Boolean) {    // 计�
                     onNavigate = { page = it },
                 )
                 AppPage.DIAGNOSTICS -> DiagnosticsScreen(
+                    time = time,
+                    hapticsEnabled = controller.settings.haptics,
+                    onNavigate = { page = it },
+                )
+                AppPage.UNITS -> UnitsScreen(
+                    converter = converter,
+                    settings = controller.settings,
                     time = time,
                     hapticsEnabled = controller.settings.haptics,
                     onNavigate = { page = it },
