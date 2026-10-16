@@ -132,6 +132,9 @@ object EquationSolver {
     /** 用于区分错误类型时额外尝试的阶数 */
     private const val DIAGNOSTIC_EXTRA_DEGREES = 2
 
+    /** 供函数分析复用：解一个**已经提取好**的多项式，跳过等号解析那一步 */
+    internal fun solvePolynomial(poly: Poly): EquationSolution = solvePoly(poly)
+
     private fun solvePoly(poly: Poly): EquationSolution {
         val coefficients = poly.coefficients
         when (poly.degree) {
