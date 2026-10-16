@@ -200,7 +200,7 @@ class CalculatorStateTest {
         s.onKey(CalcKey.Divide)
         s.type("2")
         s.onKey(CalcKey.Equals)
-        assertEquals("3.141592654", s.resultText)
+        assertEquals("3.141592653589793", s.resultText)
     }
 
     @Test

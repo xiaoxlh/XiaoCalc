@@ -1,8 +1,14 @@
 package com.example.xiaocalc.calc
 
+import java.math.BigDecimal
+
 /** 求值结果。失败不再是"魔法字符串"，而是可判定的枚举。 */
 sealed interface EvalOutcome {
-    data class Success(val value: Double, val display: String) : EvalOutcome
+    /**
+     * @param value 结果的**精确内部值**（50 位工作精度），用于续算；
+     *              显示用 [display]，它已舍到 16 位有效数字。
+     */
+    data class Success(val value: BigDecimal, val display: String) : EvalOutcome
     data class Failure(val error: CalcError) : EvalOutcome
 }
 
@@ -27,6 +33,9 @@ object CalcEngine {
             EvalOutcome.Success(value, NumberFormatter.format(value, settings, balanced))
         } catch (e: CalcException) {
             EvalOutcome.Failure(e.error)
+        } catch (_: ArithmeticException) {
+            // 内核漏出的算术异常（溢出、定义域）不应直接崩到 UI
+            EvalOutcome.Failure(CalcError.NOT_FINITE)
         } catch (_: StackOverflowError) {
             // 理论上不会发生（有深度上限），但共享给 UI 的入口不能崩
             EvalOutcome.Failure(CalcError.TOO_LONG)

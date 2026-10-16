@@ -13,7 +13,7 @@ class NumberFormatterTest {
     fun `浮点尾巴被消除`() {
         // 旧实现用 "%.6f" 截断，会把 0.30000000000000004 变成 0.3 但同时也砍掉真实精度
         assertEquals("0.3", NumberFormatter.format(0.1 + 0.2, defaults))
-        assertEquals("0.3333333333", NumberFormatter.format(1.0 / 3.0, defaults))
+        assertEquals("0.3333333333333333", NumberFormatter.format(1.0 / 3.0, defaults))
         assertEquals("2", NumberFormatter.format(2.0, defaults))
         assertEquals("0", NumberFormatter.format(0.0, defaults))
         assertEquals("-0.5", NumberFormatter.format(-0.5, defaults))
@@ -30,7 +30,7 @@ class NumberFormatterTest {
 
     @Test
     fun `极大极小值走科学计数法`() {
-        assertEquals("1.23457×10¹²", NumberFormatter.format(1.2345678e12, defaults))
+        assertEquals("1.2345678×10¹²", NumberFormatter.format(1.2345678e12, defaults))
         assertEquals("1×10⁻¹²", NumberFormatter.format(1e-12, defaults))
         // 科学计数法开关：沿用旧版语义（绝对值 ≥ 10000 即切换）
         assertEquals("1.5×10⁴", NumberFormatter.format(15000.0, defaults.copy(scientific = true)))
@@ -40,9 +40,9 @@ class NumberFormatterTest {
     @Test
     fun `续算用的纯文本形式可被解析器再次接受`() {
         val text = NumberFormatter.plainForReuse(1.2345678e12)
-        assertEquals("1.23457×10^12", text)
+        assertEquals("1.2345678×10^12", text)
         val value = ExpressionEvaluator(text).evaluate()
-        assertEquals(1.23457e12, value, 1e6)
+        assertEquals(1.2345678e12, value.toDouble(), 1e6)
     }
 
     @Test
@@ -61,8 +61,10 @@ class NumberFormatterTest {
         assertEquals("2√2", NumberFormatter.format(kotlin.math.sqrt(8.0), settings, "√8"))
         assertEquals("3", NumberFormatter.format(3.0, settings, "√9"))
         assertEquals("6√2", NumberFormatter.format(6 * kotlin.math.sqrt(2.0), settings, "2×√18"))
-        // 源表达式不是根式形态时不启用符号化
-        assertEquals("2.828427125", NumberFormatter.format(kotlin.math.sqrt(8.0), settings, "2.828427125"))
+        // 源表达式不是根式形态时不启用符号化。
+        // 末尾的 0 会被 stripTrailingZeros 去掉，因此是 15 位而非 16 位——
+        // 显示的位数少一位好过显示一个无意义的尾零。
+        assertEquals("2.82842712474619", NumberFormatter.format(kotlin.math.sqrt(8.0), settings, "2.828427125"))
     }
 
     @Test
@@ -101,12 +103,12 @@ class NumberFormatterTest {
         val v = Math.PI * kotlin.math.sqrt(2.0)
         // 需要 π，但"保留特殊符号"没开
         assertEquals(
-            "4.442882938",
+            "4.442882938158366",
             NumberFormatter.format(v, defaults.copy(keepRoot = true), "π√2"),
         )
         // 需要根号，但"保留根号"没开
         assertEquals(
-            "4.442882938",
+            "4.442882938158366",
             NumberFormatter.format(v, defaults.copy(keepSymbols = true), "π√2"),
         )
     }
@@ -178,7 +180,7 @@ class NumberFormatterTest {
         val both = defaults.copy(keepRoot = true, keepSymbols = true)
         // (1+√2) 含括号，超出表达边界 → 回落小数
         assertEquals(
-            "0.6035533906",
+            "0.6035533905932737",
             NumberFormatter.format(
                 (1 + kotlin.math.sqrt(2.0)) / 4,
                 both,

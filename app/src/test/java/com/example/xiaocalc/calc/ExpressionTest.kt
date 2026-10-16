@@ -9,7 +9,7 @@ import kotlin.math.PI
 class ExpressionTest {
 
     private fun eval(expr: String, angleUnit: AngleUnit = AngleUnit.DEG): Double =
-        ExpressionEvaluator(expr, angleUnit).evaluate()
+        ExpressionEvaluator(expr, angleUnit).evaluate().toDouble()
 
     private fun error(expr: String, angleUnit: AngleUnit = AngleUnit.DEG): CalcError {
         try {
@@ -152,7 +152,7 @@ class ExpressionTest {
         assertEquals("sin(π÷2)", CalcEngine.balanceParens("sin(π÷2"))
         assertEquals("(2+3)×(4+5)", CalcEngine.balanceParens("(2+3)×(4+5"))
         assertEquals("1+2", CalcEngine.balanceParens("1+2"))
-        assertTrue(CalcEngine.evaluate("(2+3×4", CalcSettings()).let { it is EvalOutcome.Success && it.value == 14.0 })
+        assertTrue(CalcEngine.evaluate("(2+3×4", CalcSettings()).let { it is EvalOutcome.Success && it.value.toDouble() == 14.0 })
     }
 
     @Test

@@ -50,8 +50,8 @@ class CalculatorState(
     /** 历史记录，最新在前 */
     val history = mutableStateListOf<HistoryEntry>()
 
-    /** 最近一次成功求值的数值，用于"求值后直接按运算符"续算 */
-    private var lastValue: Double? = null
+    /** 最近一次成功求值的数值（50 位工作精度），用于"求值后直接按运算符"续算 */
+    private var lastValue: java.math.BigDecimal? = null
 
     init {
         history.addAll(historyStore.loadEntries().take(MAX_HISTORY))
