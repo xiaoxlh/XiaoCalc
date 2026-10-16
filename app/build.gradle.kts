@@ -1,5 +1,4 @@
 import java.util.Properties
-import org.gradle.api.attributes.java.TargetJvmEnvironment
 
 plugins {
     id("com.android.application")
@@ -12,7 +11,8 @@ plugins {
 
 android {
     namespace = "com.example.xiaocalc"
-    compileSdk = 34
+    // material3 1.4.0（M3 Expressive）的 AAR 元数据要求 compileSdk ≥ 36
+    compileSdk = 36
 
     val keystoreProperties = Properties()
     val keystoreFile = rootProject.file("keystore.properties")
@@ -35,8 +35,8 @@ android {
         applicationId = "com.example.xiaocalc"
         minSdk = 26 // Android 8.0，Wear OS 2/3/4 均覆盖
         targetSdk = 34
-        versionCode = 5
-        versionName = "1.1.2"
+        versionCode = 6
+        versionName = "1.2.0"
     }
 
     buildTypes {
@@ -64,12 +64,8 @@ android {
     }
 
     compileOptions {
-        sourceCompatibility = JavaVersion.VERSION_1_8
-        targetCompatibility = JavaVersion.VERSION_1_8
-    }
-
-    kotlinOptions {
-        jvmTarget = "1.8"
+        sourceCompatibility = JavaVersion.VERSION_11
+        targetCompatibility = JavaVersion.VERSION_11
     }
 
     testOptions {
@@ -77,9 +73,20 @@ android {
     }
 }
 
+// Kotlin 2.3 起 `android { kotlinOptions { jvmTarget } }` 已被移除，
+// 必须改用顶层 kotlin { compilerOptions } DSL。
+kotlin {
+    compilerOptions {
+        jvmTarget.set(org.jetbrains.kotlin.gradle.dsl.JvmTarget.JVM_11)
+    }
+}
+
 dependencies {
-    // Compose 版本统一由 BOM 决定：ui / foundation / material3 均为 1.7.3 / 1.3.0
-    val composeBom = platform("androidx.compose:compose-bom:2024.09.03")
+    // Compose 版本统一由 BOM 决定：ui / foundation / runtime 1.11.2，material3 1.4.0
+    // 选 2026.05.01 而非最新 BOM，是因为 Paparazzi 2.0.0-alpha05 官方声明的 Compose 版本
+    // 恰为 1.11.2；再往上（1.12.x）会硬性要求 AGP 9.1 + compileSdk 37。
+    // material3 1.4.0 是 Material 3 Expressive 的起始版本，该 BOM 已包含。
+    val composeBom = platform("androidx.compose:compose-bom:2026.05.01")
     implementation(composeBom)
     androidTestImplementation(composeBom)
 
@@ -94,27 +101,20 @@ dependencies {
     // 仅用核心图标集（约 40 个），不引 material-icons-extended（体积 +30MB）
     implementation("androidx.compose.material:material-icons-core")
 
+    /**
+     * Google 官方手表组件库（androidx.wear.compose）。
+     *
+     * 选 1.6.2 而非 1.7.1：后者的 AAR 元数据硬性要求 `minCompileSdk=37, minAGP=9.1.0`，
+     * 而本工程按 Paparazzi 的配对要求固定在 AGP 8.13.2 / compileSdk 36。
+     * 1.6.2 的元数据为 `minCompileSdk=35, minAGP=8.6.0`，满足。
+     *
+     * 用途仅限"官方已经有规范实现"的部件：时间文本、缩放列表、页码指示器、
+     * 开关、芯片等。计算器键盘与圆盘布局继续手写——官方库没有对应组件。
+     */
+    implementation("androidx.wear.compose:compose-material3:1.6.2")
+    implementation("androidx.wear.compose:compose-foundation:1.6.2")
+
     debugImplementation("androidx.compose.ui:ui-tooling")
 
     testImplementation("junit:junit:4.13.2")
-
-    /**
-     * Paparazzi / layoutlib 必须拿到 Guava 的 **STANDARD_JVM(-jre) 变体**。
-     * Android 工程默认会把 Guava 解析成 `-android` 变体，而该变体缺少
-     * `com.google.common.collect.Sets#toImmutableEnumSet`，导致截图测试启动时抛
-     * IllegalAccessError（Paparazzi 官方 changelog 里记录的已知问题）。
-     *
-     * 这条约束只作用于 testImplementation，不影响 APK 依赖解析。
-     */
-    constraints {
-        testImplementation("com.google.guava:guava") {
-            attributes {
-                attribute(
-                    TargetJvmEnvironment.TARGET_JVM_ENVIRONMENT_ATTRIBUTE,
-                    objects.named(TargetJvmEnvironment::class.java, TargetJvmEnvironment.STANDARD_JVM),
-                )
-            }
-            because("Paparazzi/layoutlib 需要 Guava 的标准 JVM 变体")
-        }
-    }
 }
