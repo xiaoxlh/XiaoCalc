@@ -169,6 +169,22 @@ fun SettingsScreen(
                     },
                 )
 
+                Spacer(Modifier.height(scaled(14f)))
+                SectionLabel("网络", Modifier.fillMaxWidth())
+                Spacer(Modifier.height(scaled(6f)))
+                SettingRow(
+                    title = "联网获取汇率",
+                    description = if (settings.allowNetwork) {
+                        "仅在你点「更新」时请求官方汇率"
+                    } else {
+                        "已关闭 · 使用上次缓存的汇率"
+                    },
+                    checked = settings.allowNetwork,
+                    onToggle = { value ->
+                        controller.updateSettings { it.copy(allowNetwork = value) }
+                    },
+                )
+
                 Spacer(Modifier.height(scaled(16f)))
                 SectionLabel("关于", Modifier.fillMaxWidth())
                 Spacer(Modifier.height(scaled(8f)))

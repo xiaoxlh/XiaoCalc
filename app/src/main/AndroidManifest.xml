@@ -3,6 +3,14 @@
     xmlns:tools="http://schemas.android.com/tools">
 
     <!--
+      联网仅用于**货币汇率**，且默认关闭：只有用户在货币页显式同意后，
+      应用才会向 api.frankfurter.dev 发起请求（见 CalcSettings.allowNetwork 与 CurrencyState）。
+      除此之外应用完全离线，不采集任何数据。
+      权限本身必须声明，否则即使用户同意也无法请求。
+    -->
+    <uses-permission android:name="android.permission.INTERNET" />
+
+    <!--
       面向圆形表盘的安卓手表计算器。
 
       `required="false"` 是**刻意**的：同一份 APK 要能侧载到方形手表上调试

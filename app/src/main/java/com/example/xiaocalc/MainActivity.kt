@@ -33,6 +33,7 @@ import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.WindowInsetsControllerCompat
 import com.example.xiaocalc.adaptive.WatchFrame
 import com.example.xiaocalc.calc.CalculatorState
+import com.example.xiaocalc.calc.CurrencyState
 import com.example.xiaocalc.calc.EquationState
 import com.example.xiaocalc.calc.GraphState
 import com.example.xiaocalc.calc.SharedPreferencesStores
@@ -42,6 +43,8 @@ import com.example.xiaocalc.design.Motion
 import com.example.xiaocalc.design.XiaoCalcTheme
 import com.example.xiaocalc.ui.AppPage
 import com.example.xiaocalc.ui.CalculatorScreen
+import com.example.xiaocalc.data.FrankfurterRateSource
+import com.example.xiaocalc.ui.CurrencyScreen
 import com.example.xiaocalc.ui.DiagnosticsScreen
 import com.example.xiaocalc.ui.EquationScreen
 import com.example.xiaocalc.ui.GraphScreen
@@ -136,6 +139,10 @@ private fun XiaoCalcApp(stores: Stores, welcomeCompleted: Boolean) {    // 计�
 
     // 图像页：输入态与展示态分离，状态自己管着这两者
     val graph = remember { GraphState() }
+
+    // 货币页。数据源单独持有：网络实现与纯计算状态解耦，便于测试时替换
+    val rateSource = remember { FrankfurterRateSource() }
+    val currency = remember(stores) { CurrencyState(stores) }
 
     var page by rememberSaveable {
         mutableStateOf(if (welcomeCompleted) AppPage.CALCULATOR else AppPage.WELCOME)
@@ -245,6 +252,17 @@ private fun XiaoCalcApp(stores: Stores, welcomeCompleted: Boolean) {    // 计�
                         time = time,
                         hapticsEnabled = controller.settings.haptics,
                         onNavigate = { page = it },
+                    )
+                    AppPage.CURRENCY -> CurrencyScreen(
+                        state = currency,
+                        source = rateSource,
+                        settings = controller.settings,
+                        time = time,
+                        hapticsEnabled = controller.settings.haptics,
+                        onNavigate = { page = it },
+                        onAuthorize = {
+                            controller.updateSettings { it.copy(allowNetwork = true) }
+                        },
                     )
                 }
             }

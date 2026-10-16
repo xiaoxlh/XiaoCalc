@@ -16,15 +16,20 @@ import com.example.xiaocalc.calc.AngleUnit
 import com.example.xiaocalc.calc.CalcKey
 import com.example.xiaocalc.calc.CalcSettings
 import com.example.xiaocalc.calc.CalculatorState
+import com.example.xiaocalc.calc.CurrencyState
 import com.example.xiaocalc.calc.EquationMode
 import com.example.xiaocalc.calc.EquationState
 import com.example.xiaocalc.calc.GraphState
 import com.example.xiaocalc.calc.HistoryEntry
 import com.example.xiaocalc.calc.InMemoryHistoryStore
+import com.example.xiaocalc.calc.InMemoryRateStore
 import com.example.xiaocalc.calc.InMemorySettingsStore
+import com.example.xiaocalc.calc.RateCodec
+import com.example.xiaocalc.calc.RateTable
 import com.example.xiaocalc.calc.ThemeColor
 import com.example.xiaocalc.calc.UnitCategory
 import com.example.xiaocalc.calc.UnitConverterState
+import com.example.xiaocalc.data.RateSource
 import com.example.xiaocalc.design.XiaoCalcTheme
 import com.example.xiaocalc.ui.components.PickerOverlay
 import org.junit.Rule
@@ -398,6 +403,57 @@ class WatchScreenshotTest {
                     )
                 }
             }
+        }
+    }
+
+    // ------------------------------------------------------------------ 货币
+
+    /** 快照不联网：数据源固定返回 null，页面只会用到注入的缓存汇率 */
+    private class OfflineRateSource : RateSource {
+        override fun fetch(base: String, quotes: List<String>): RateTable? = null
+    }
+
+    private fun currencyState(withCache: Boolean = true): CurrencyState {
+        val cached = if (withCache) {
+            RateCodec.parse(
+                """[{"date":"2026-10-16","base":"CNY","quote":"USD","rate":0.14961},
+                    {"date":"2026-10-16","base":"CNY","quote":"JPY","rate":23.655}]""",
+            )
+        } else {
+            null
+        }
+        val state = CurrencyState(InMemoryRateStore(cached))
+        for (c in "100") state.onKey(CalcKey.Digit(c))
+        return state
+    }
+
+    private fun currencySnapshot(name: String, state: CurrencyState) = snapshot(name) {
+        CurrencyScreen(
+            state = state,
+            source = OfflineRateSource(),
+            settings = CalcSettings(),
+            time = "10:24",
+            hapticsEnabled = false,
+            onNavigate = {},
+            onAuthorize = {},
+        )
+    }
+
+    @Test
+    fun currency_with_cache() {
+        currencySnapshot("currency_cached", currencyState())
+    }
+
+    @Test
+    fun currency_no_cache() {
+        currencySnapshot("currency_empty", currencyState(withCache = false))
+    }
+
+    /** 授权面板：文案必须完整可读，不能被圆形屏幕裁掉 */
+    @Test
+    fun currency_consent() {
+        snapshot("currency_consent") {
+            ConsentPanel(onDecline = {}, onAccept = {})
         }
     }
 

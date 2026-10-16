@@ -147,4 +147,11 @@ dependencies {
     debugImplementation("androidx.compose.ui:ui-tooling")
 
     testImplementation("junit:junit:4.13.2")
+
+    /**
+     * `org.json` 是 Android 框架自带的类，JVM 单元测试里没有。
+     * 汇率响应解析（[com.example.xiaocalc.calc.RateCodec]）依赖它，
+     * 因此测试期补一个同名的 JVM 实现——**只进测试类路径**，不进 APK。
+     */
+    testImplementation("org.json:json:20231013")
 }

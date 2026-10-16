@@ -24,6 +24,14 @@ data class CalcSettings(
     val haptics: Boolean = true,
     /** 强调色主题。默认为红，与旧版逐值相同 */
     val themeColor: ThemeColor = ThemeColor.RED,
+    /**
+     * 是否允许联网获取汇率。
+     *
+     * **默认为 false**，且只有在用户于货币页显式同意后才会变成 true。
+     * 应用不会在未授权时发起任何网络请求——这条由 `CurrencyState` 把关，
+     * 而不是靠"记得别调用"。
+     */
+    val allowNetwork: Boolean = false,
 ) {
     companion object {
         // 旧版存储 key（SharedPreferences: calculator_settings）
@@ -36,5 +44,6 @@ data class CalcSettings(
         const val KEY_GROUP = "group_digits"
         const val KEY_HAPTICS = "haptics"
         const val KEY_THEME = "theme_color"
+        const val KEY_NETWORK = "allow_network"
     }
 }
