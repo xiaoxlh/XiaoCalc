@@ -21,13 +21,21 @@ enum class AngleUnit { DEG, RAD }
 class ExpressionEvaluator(
     private val source: String,
     private val angleUnit: AngleUnit = AngleUnit.DEG,
+    /**
+     * 变量取值表。
+     *
+     * 只有出现在这里的单字母才会被当作变量——否则 `x` 依旧报"未知函数"。
+     * 这样主计算器（不传此参数）的行为与之前完全一致，
+     * 而方程求解可以传入 `x=2` 之类的绑定来复用同一套语法分析。
+     */
+    private val variables: Map<String, BigDecimal> = emptyMap(),
 ) {
 
     // ---------------------------------------------------------------- 记号
 
     private enum class Kind {
         NUM, PLUS, MINUS, MUL, DIV, POW, PCT, FACT,
-        LPAREN, RPAREN, SQRT, FUNC, CONST, MOD, END,
+        LPAREN, RPAREN, SQRT, FUNC, CONST, MOD, VAR, END,
     }
 
     private class Token(
@@ -95,12 +103,16 @@ class ExpressionEvaluator(
                 c.isLetter() -> {
                     val start = i
                     while (i < text.length && text[i].isLetter() && text[i] != 'π') i++
-                    val name = text.substring(start, i).lowercase()
-                    when (name) {
-                        "sin", "cos", "tan", "ln" -> out += Token(Kind.FUNC, start, name = name)
-                        "mod" -> out += Token(Kind.MOD, start)
-                        "pi" -> out += Token(Kind.CONST, start, name = "pi")
-                        "e" -> out += Token(Kind.CONST, start, name = "e")
+                    val raw = text.substring(start, i)
+                    val name = raw.lowercase()
+                    when {
+                        name == "sin" || name == "cos" || name == "tan" || name == "ln" ->
+                            out += Token(Kind.FUNC, start, name = name)
+                        name == "mod" -> out += Token(Kind.MOD, start)
+                        name == "pi" -> out += Token(Kind.CONST, start, name = "pi")
+                        name == "e" -> out += Token(Kind.CONST, start, name = "e")
+                        // 单字母且已被声明为变量才算变量；未声明的仍按旧行为报"未知函数"
+                        raw.length == 1 && name in variables -> out += Token(Kind.VAR, start, name = name)
                         else -> throw CalcException(CalcError.UNKNOWN_FUNCTION, start)
                     }
                 }
@@ -275,6 +287,11 @@ class ExpressionEvaluator(
                 advance()
                 if (token.name == "pi") Dec.PI else Dec.E
             }
+            Kind.VAR -> {
+                advance()
+                // 记号化阶段已确认该名字在 variables 里，这里只是取值
+                variables.getValue(token.name)
+            }
             Kind.LPAREN -> {
                 advance()
                 val value = additive()
@@ -327,7 +344,7 @@ class ExpressionEvaluator(
     }
 
     private fun startsPrimary(kind: Kind): Boolean = when (kind) {
-        Kind.NUM, Kind.CONST, Kind.LPAREN, Kind.SQRT, Kind.FUNC -> true
+        Kind.NUM, Kind.CONST, Kind.VAR, Kind.LPAREN, Kind.SQRT, Kind.FUNC -> true
         else -> false
     }
 
