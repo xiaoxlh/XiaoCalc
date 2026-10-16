@@ -40,7 +40,11 @@ fun XiaoCalcTheme(
         MaterialTheme(
             colorScheme = scheme,
             typography = XiaoCalcTypography,
-            content = content,
-        )
+        ) {
+            // 官方手表组件的主题嵌在常规主题之内（见 WearTheme 的说明）。
+            // 两者由同一份调色板生成，因此同屏不会出现色差；
+            // 而现有手写界面继续读外层，不受影响。
+            WearTheme(themeColor, content)
+        }
     }
 }
