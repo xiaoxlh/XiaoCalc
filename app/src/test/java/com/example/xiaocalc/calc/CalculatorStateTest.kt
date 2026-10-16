@@ -366,9 +366,38 @@ class CalculatorStateTest {
     @Test
     fun `键盘布局完整性`() {
         assertEquals(16, MainKeypad.size)
-        assertEquals(16, FunctionKeypad.size)
+        // 函数页删掉 `x²` 后是 15 个键，末行少一格（由 Keypad 居中摆放）。
+        // 这里断言的是"不超过 4×4 的格位"，多出来的键会被静默丢弃、根本渲染不出来。
+        assertEquals(15, FunctionKeypad.size)
+        assertTrue("函数页不能超过 4×4 的格位", FunctionKeypad.size <= 16)
+        assertTrue("`x²` 应当已被删除（与 ^2 等价）", FunctionKeypad.none { it.label == "x²" })
         assertTrue(MainKeypad.any { it.label == "=" })
         assertTrue(FunctionKeypad.any { it is CalcKey.Fn })
+    }
+
+    @Test
+    fun `角度单位只在用到三角函数时显示`() {
+        val s = state()
+        // 普通算式旁边挂一个 "deg" 纯属噪声
+        s.type("2+3")
+        assertEquals("2+3", s.displayExpression)
+
+        val trig = state()
+        trig.updateSettings { it.copy(angleUnit = AngleUnit.DEG) }
+        trig.onKey(CalcKey.Fn("sin"))
+        trig.type("30")
+        assertEquals("deg sin(30", trig.displayExpression)
+
+        // 切到弧度制，标记随之改变
+        trig.updateSettings { it.copy(angleUnit = AngleUnit.RAD) }
+        assertEquals("rad sin(30", trig.displayExpression)
+
+        // ln 不受角度制影响，因此不加标记
+        val log = state()
+        log.updateSettings { it.copy(angleUnit = AngleUnit.DEG) }
+        log.onKey(CalcKey.Ln)
+        log.type("2")
+        assertEquals("ln(2", log.displayExpression)
     }
 }
 

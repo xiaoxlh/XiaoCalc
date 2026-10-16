@@ -57,9 +57,26 @@ class CalculatorState(
         history.addAll(historyStore.loadEntries().take(MAX_HISTORY))
     }
 
-    /** 显示用表达式：`^` 转上标 */
+    /**
+     * 显示用表达式：`^` 转上标，并在**用到三角函数时**冠以当前角度单位。
+     *
+     * 为什么要这枚标记：`sin(30)` 在角度制下等于 0.5、在弧度制下约等于 -0.988，
+     * 结果差了十万八千里，而表达式本身看不出用的是哪个制。
+     * 键盘上的 `deg` / `rad` 键虽然显示当前状态，但滚动到显示区之后就不在视野里了。
+     *
+     * 只在表达式**真的含三角函数**时显示：`2+3` 旁边挂一个 "deg" 纯属噪声。
+     */
     val displayExpression: String
-        get() = NumberFormatter.superscriptExponents(expression)
+        get() {
+            val body = NumberFormatter.superscriptExponents(expression)
+            if (body.isEmpty() || !usesAngleUnit) return body
+            val unit = if (settings.angleUnit == AngleUnit.DEG) "deg" else "rad"
+            return "$unit $body"
+        }
+
+    /** 表达式里是否出现三角函数——只有它们受角度制影响，`ln` 之类无关 */
+    private val usesAngleUnit: Boolean
+        get() = TRIG_FUNCTIONS.any { expression.contains(it) }
 
     val canEvaluate: Boolean get() = expression.isNotBlank()
 
@@ -128,9 +145,7 @@ class CalculatorState(
         error = null
         val first = token.firstOrNull() ?: return
         val isBinary = token.length == 1 && first in BINARY_OPERATORS
-        // `x²` 是"作用于当前数值"的后缀键，语义上等价于接着算
-        val isSquare = token == SQUARE_TOKEN
-        beginInput(continueWithResult = isBinary || isSquare)
+        beginInput(continueWithResult = isBinary)
         if (expression.length + token.length > CalcEngine.MAX_LENGTH) return
 
         val last = expression.lastOrNull()
@@ -151,8 +166,6 @@ class CalculatorState(
 
             // 后缀运算符：前面必须有操作数
             token == "%" || token == "!" -> if (!hasOperand) return
-
-            isSquare -> if (!hasOperand) return
 
             token == ")" -> if (!canCloseParen()) return
         }
@@ -302,7 +315,9 @@ class CalculatorState(
     private companion object {
         const val MAX_HISTORY = 50
         const val BINARY_OPERATORS = "+-×÷^"
-        const val SQUARE_TOKEN = "^2"
         val ATOMIC_TOKENS = listOf("sin(", "cos(", "tan(", "mod")
+
+        /** 受角度制影响的函数。`ln` 与 `√` 不受影响，因此不在此列 */
+        val TRIG_FUNCTIONS = listOf("sin", "cos", "tan")
     }
 }

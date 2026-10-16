@@ -25,6 +25,7 @@ import androidx.compose.ui.semantics.Role
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -35,6 +36,7 @@ import com.example.xiaocalc.adaptive.scaled
 import com.example.xiaocalc.adaptive.scaledSp
 import com.example.xiaocalc.calc.AngleUnit
 import com.example.xiaocalc.calc.CalculatorState
+import com.example.xiaocalc.ui.components.ChoiceRow
 import com.example.xiaocalc.ui.components.ClockText
 import com.example.xiaocalc.ui.components.PageTitle
 import com.example.xiaocalc.ui.components.RotaryScrollHandler
@@ -152,6 +154,19 @@ fun SettingsScreen(
                     description = "按键时轻微振动",
                     checked = settings.haptics,
                     onToggle = { value -> controller.updateSettings { it.copy(haptics = value) } },
+                )
+
+                Spacer(Modifier.height(scaled(14f)))
+                SectionLabel("外观", Modifier.fillMaxWidth())
+                Spacer(Modifier.height(scaled(6f)))
+                ChoiceRow(
+                    title = "主题色",
+                    description = "强调色：${settings.themeColor.label} · 点击切换",
+                    swatch = Color(settings.themeColor.accent),
+                    onClick = {
+                        haptics(false)
+                        controller.updateSettings { it.copy(themeColor = it.themeColor.next()) }
+                    },
                 )
 
                 Spacer(Modifier.height(scaled(16f)))

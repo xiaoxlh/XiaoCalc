@@ -43,7 +43,6 @@ sealed class CalcKey(
     object LParen : CalcKey("(", KeyKind.FUNCTION, "(")
     object RParen : CalcKey(")", KeyKind.FUNCTION, ")")
     object SquareRoot : CalcKey("√", KeyKind.FUNCTION, "√")
-    object Square : CalcKey("x²", KeyKind.FUNCTION, "^2")
     object Pi : CalcKey("π", KeyKind.FUNCTION, "π")
     object Euler : CalcKey("e", KeyKind.FUNCTION, "e")
 
@@ -103,12 +102,16 @@ val MainKeypad: List<CalcKey> = listOf(
  * 函数页的两个二元运算符 `^` / `mod` 也应落在右列并上下相邻。
  * 若按"根号在前"的直觉排，`^` 会被挤到第 3 列，两个红色键在对角线上，
  * 既割裂又和主键盘的运算符列对不上。
+ *
+ * `x²` 已删除：它与 `^2` 完全等价，却占掉一个格位、还让人以为"平方"是独立功能。
+ * 删除后本页只有 15 个键，末行空出一格——由 [com.example.xiaocalc.ui.components.Keypad]
+ * 把不足一行的按键**居中**摆放，缺口因此看起来是对称留白而不是漏排。
  */
 val FunctionKeypad: List<CalcKey> = listOf(
     CalcKey.LParen, CalcKey.RParen, CalcKey.SquareRoot, CalcKey.Power,
     CalcKey.Fn("sin"), CalcKey.Fn("cos"), CalcKey.Fn("tan"), CalcKey.Mod,
     CalcKey.Percent, CalcKey.Factorial, CalcKey.Pi, CalcKey.Euler,
-    CalcKey.AngleUnit, CalcKey.Square, CalcKey.Ln, CalcKey.Equals,
+    CalcKey.AngleUnit, CalcKey.Ln, CalcKey.Equals,
 )
 
 fun keypadFor(page: KeypadPage): List<CalcKey> = when (page) {

@@ -21,6 +21,7 @@ import com.example.xiaocalc.calc.EquationState
 import com.example.xiaocalc.calc.HistoryEntry
 import com.example.xiaocalc.calc.InMemoryHistoryStore
 import com.example.xiaocalc.calc.InMemorySettingsStore
+import com.example.xiaocalc.calc.ThemeColor
 import com.example.xiaocalc.calc.UnitCategory
 import com.example.xiaocalc.calc.UnitConverterState
 import com.example.xiaocalc.design.XiaoCalcTheme
@@ -87,12 +88,41 @@ class WatchScreenshotTest {
         return state
     }
 
-    private fun snapshot(name: String, device: DeviceConfig = roundWatch, content: @Composable () -> Unit) {
+    private fun snapshot(
+        name: String,
+        device: DeviceConfig = roundWatch,
+        theme: ThemeColor = ThemeColor.RED,
+        content: @Composable () -> Unit,
+    ) {
         paparazzi.unsafeUpdateConfig(deviceConfig = device)
         paparazzi.snapshot(name = name) {
-            XiaoCalcTheme {
+            XiaoCalcTheme(themeColor = theme) {
                 WatchFrame(modifier = Modifier.fillMaxSize()) { content() }
             }
+        }
+    }
+
+    // ------------------------------------------------------------------ 主题
+
+    /**
+     * 非默认主题：确认强调色真的贯穿到了 `=` 键与运算符键，
+     * 而结构色（页面胶囊的蓝）**保持不变**——两者分工不该被一起换掉。
+     */
+    @Test
+    fun calculator_theme_green() {
+        snapshot("calculator_theme_green", theme = ThemeColor.GREEN) {
+            CalculatorScreen(
+                controller = state(result = "12345×678"),
+                time = "10:24",
+                onNavigate = {},
+            )
+        }
+    }
+
+    @Test
+    fun settings_theme_purple() {
+        snapshot("settings_theme_purple", theme = ThemeColor.PURPLE) {
+            SettingsScreen(controller = state(), time = "10:24", onNavigate = {})
         }
     }
 

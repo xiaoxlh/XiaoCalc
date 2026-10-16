@@ -77,6 +77,8 @@ class SharedPreferencesStores(context: Context) : Stores {
         },
         groupDigits = settingsPrefs.getBoolean(CalcSettings.KEY_GROUP, true),
         haptics = settingsPrefs.getBoolean(CalcSettings.KEY_HAPTICS, true),
+        // 存名字而不是序号：日后在枚举中间插入主题时，老用户的配置不会被解释成别的颜色
+        themeColor = ThemeColor.fromName(settingsPrefs.getString(CalcSettings.KEY_THEME, null)),
     )
 
     override fun save(settings: CalcSettings) {
@@ -90,6 +92,7 @@ class SharedPreferencesStores(context: Context) : Stores {
             )
             .putBoolean(CalcSettings.KEY_GROUP, settings.groupDigits)
             .putBoolean(CalcSettings.KEY_HAPTICS, settings.haptics)
+            .putString(CalcSettings.KEY_THEME, settings.themeColor.name)
             .apply()
     }
 

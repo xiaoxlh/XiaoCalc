@@ -112,13 +112,11 @@ class MainActivity : ComponentActivity() {
         }
 
         setContent {
-            XiaoCalcTheme {
-                CompositionLocalProvider(LocalRotaryHub provides rotaryHub) {
-                    XiaoCalcApp(
-                        stores = stores,
-                        welcomeCompleted = remember { stores.isWelcomeCompleted() },
-                    )
-                }
+            CompositionLocalProvider(LocalRotaryHub provides rotaryHub) {
+                XiaoCalcApp(
+                    stores = stores,
+                    welcomeCompleted = remember { stores.isWelcomeCompleted() },
+                )
             }
         }
     }
@@ -159,80 +157,84 @@ private fun XiaoCalcApp(stores: Stores, welcomeCompleted: Boolean) {    // 计�
     val rotaryHub = LocalRotaryHub.current
     SideEffect { rotaryHub.currentPage = page }
 
-    WatchFrame {
-        AnimatedContent(
-            targetState = page,
-            transitionSpec = {
-                // 进入子页面＝前进（自右侧滑入）；回到计算器＝后退（自左侧滑入）。
-                // 位移取**整屏宽度**：只用零头会让两张页面在过渡中途叠在一起、看起来像乱码。
-                val forward = targetState != AppPage.CALCULATOR
-                val direction = if (forward) 1 else -1
-                (
-                    slideInHorizontally(Motion.enter(Motion.DURATION_MEDIUM2)) {
-                        it * direction
-                    } +
-                        fadeIn(tween(Motion.DURATION_SHORT4, easing = Motion.EmphasizedDecelerate)) +
-                        scaleIn(
-                            initialScale = 0.96f,
-                            animationSpec = Motion.enter(Motion.DURATION_MEDIUM1),
-                        )
-                    ).togetherWith(
-                    slideOutHorizontally(Motion.exit(Motion.DURATION_SHORT4)) {
-                        -it * direction
-                    } +
-                        fadeOut(tween(Motion.DURATION_SHORT3, easing = Motion.EmphasizedAccelerate)) +
-                        scaleOut(
-                            targetScale = 0.96f,
-                            animationSpec = Motion.exit(Motion.DURATION_SHORT4),
-                        ),
-                )
-            },
-            // 裁剪滑出的旧页面，避免它在内容盒之外留下残影
-            modifier = Modifier.clipToBounds(),
-            label = "page",
-        ) { target ->
-            when (target) {
-                AppPage.WELCOME -> WelcomeScreen(
-                    time = time,
-                    onComplete = {
-                        stores.markWelcomeCompleted()
-                        page = AppPage.CALCULATOR
-                    },
-                )
-                AppPage.CALCULATOR -> CalculatorScreen(
-                    controller = controller,
-                    time = time,
-                    onNavigate = { page = it },
-                )
-                AppPage.HISTORY -> HistoryScreen(
-                    controller = controller,
-                    time = time,
-                    onNavigate = { page = it },
-                )
-                AppPage.SETTINGS -> SettingsScreen(
-                    controller = controller,
-                    time = time,
-                    onNavigate = { page = it },
-                )
-                AppPage.DIAGNOSTICS -> DiagnosticsScreen(
-                    time = time,
-                    hapticsEnabled = controller.settings.haptics,
-                    onNavigate = { page = it },
-                )
-                AppPage.UNITS -> UnitsScreen(
-                    converter = converter,
-                    settings = controller.settings,
-                    time = time,
-                    hapticsEnabled = controller.settings.haptics,
-                    onNavigate = { page = it },
-                )
-                AppPage.EQUATION -> EquationScreen(
-                    state = equation,
-                    settings = controller.settings,
-                    time = time,
-                    hapticsEnabled = controller.settings.haptics,
-                    onNavigate = { page = it },
-                )
+    // 主题必须包在这里而不是 setContent 里：主题色由 settings 驱动，
+    // 而 settings 属于下面这个 controller。读它才能让"设置页改了颜色 -> 立刻重绘"成立。
+    XiaoCalcTheme(themeColor = controller.settings.themeColor) {
+        WatchFrame {
+            AnimatedContent(
+                targetState = page,
+                transitionSpec = {
+                    // 进入子页面＝前进（自右侧滑入）；回到计算器＝后退（自左侧滑入）。
+                    // 位移取**整屏宽度**：只用零头会让两张页面在过渡中途叠在一起、看起来像乱码。
+                    val forward = targetState != AppPage.CALCULATOR
+                    val direction = if (forward) 1 else -1
+                    (
+                        slideInHorizontally(Motion.enter(Motion.DURATION_MEDIUM2)) {
+                            it * direction
+                        } +
+                            fadeIn(tween(Motion.DURATION_SHORT4, easing = Motion.EmphasizedDecelerate)) +
+                            scaleIn(
+                                initialScale = 0.96f,
+                                animationSpec = Motion.enter(Motion.DURATION_MEDIUM1),
+                            )
+                        ).togetherWith(
+                        slideOutHorizontally(Motion.exit(Motion.DURATION_SHORT4)) {
+                            -it * direction
+                        } +
+                            fadeOut(tween(Motion.DURATION_SHORT3, easing = Motion.EmphasizedAccelerate)) +
+                            scaleOut(
+                                targetScale = 0.96f,
+                                animationSpec = Motion.exit(Motion.DURATION_SHORT4),
+                            ),
+                    )
+                },
+                // 裁剪滑出的旧页面，避免它在内容盒之外留下残影
+                modifier = Modifier.clipToBounds(),
+                label = "page",
+            ) { target ->
+                when (target) {
+                    AppPage.WELCOME -> WelcomeScreen(
+                        time = time,
+                        onComplete = {
+                            stores.markWelcomeCompleted()
+                            page = AppPage.CALCULATOR
+                        },
+                    )
+                    AppPage.CALCULATOR -> CalculatorScreen(
+                        controller = controller,
+                        time = time,
+                        onNavigate = { page = it },
+                    )
+                    AppPage.HISTORY -> HistoryScreen(
+                        controller = controller,
+                        time = time,
+                        onNavigate = { page = it },
+                    )
+                    AppPage.SETTINGS -> SettingsScreen(
+                        controller = controller,
+                        time = time,
+                        onNavigate = { page = it },
+                    )
+                    AppPage.DIAGNOSTICS -> DiagnosticsScreen(
+                        time = time,
+                        hapticsEnabled = controller.settings.haptics,
+                        onNavigate = { page = it },
+                    )
+                    AppPage.UNITS -> UnitsScreen(
+                        converter = converter,
+                        settings = controller.settings,
+                        time = time,
+                        hapticsEnabled = controller.settings.haptics,
+                        onNavigate = { page = it },
+                    )
+                    AppPage.EQUATION -> EquationScreen(
+                        state = equation,
+                        settings = controller.settings,
+                        time = time,
+                        hapticsEnabled = controller.settings.haptics,
+                        onNavigate = { page = it },
+                    )
+                }
             }
         }
     }

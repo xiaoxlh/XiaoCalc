@@ -22,6 +22,8 @@ data class CalcSettings(
     val groupDigits: Boolean = true,
     /** 按键触感反馈 */
     val haptics: Boolean = true,
+    /** 强调色主题。默认为红，与旧版逐值相同 */
+    val themeColor: ThemeColor = ThemeColor.RED,
 ) {
     companion object {
         // 旧版存储 key（SharedPreferences: calculator_settings）
@@ -33,5 +35,6 @@ data class CalcSettings(
         const val KEY_ANGLE = "angle_unit"
         const val KEY_GROUP = "group_digits"
         const val KEY_HAPTICS = "haptics"
+        const val KEY_THEME = "theme_color"
     }
 }

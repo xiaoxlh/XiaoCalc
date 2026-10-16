@@ -122,7 +122,13 @@ fun Keypad(
                 rows.forEachIndexed { rowIndex, row ->
                     Row(
                         modifier = Modifier.width(scaled(row.maxWidth)),
-                        horizontalArrangement = Arrangement.spacedBy(gap),
+                        // 居中而非靠左：删掉 `x²` 之后函数页只有 15 个键，
+                        // 末行少一格。靠左会留下一个像漏排的缺口，
+                        // 居中则读作对称留白。（满行时两者完全一致。）
+                        horizontalArrangement = Arrangement.spacedBy(
+                            gap,
+                            Alignment.CenterHorizontally,
+                        ),
                     ) {
                         keys.drop(rowIndex * row.columns).take(row.columns).forEach { key ->
                             CalcKeyButton(

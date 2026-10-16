@@ -2,12 +2,15 @@ package com.example.xiaocalc.ui.components
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Switch
@@ -17,6 +20,7 @@ import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.font.FontWeight
@@ -90,6 +94,64 @@ fun DensityScale(factor: Float, content: @Composable () -> Unit) {
         ),
         content = content,
     )
+}
+
+/**
+ * 设置项卡片：左标题/说明 + 右侧色块，点击**循环切换**取值。
+ *
+ * 为什么不做成下拉选择器：设置页的列表已经由表冠驱动滚动，
+ * 再叠一个可滚动浮层会出现"表冠到底在滚哪个"的歧义。
+ * 主题只有 8 个、且是低频设置，循环点击的代价可以接受，
+ * 而右侧色块让"当前是什么、下一步会变成什么"一眼可见。
+ */
+@Composable
+fun ChoiceRow(
+    title: String,
+    description: String,
+    swatch: Color,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    Row(
+        modifier = modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(scaled(20f)))
+            .background(MaterialTheme.colorScheme.surfaceContainer)
+            .clickable(role = Role.Button, onClickLabel = title, onClick = onClick)
+            .padding(
+                start = scaled(18f),
+                end = scaled(18f),
+                top = scaled(8f),
+                bottom = scaled(8f),
+            ),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Column(Modifier.weight(1f)) {
+            Text(
+                text = title,
+                color = MaterialTheme.colorScheme.onSurface,
+                fontSize = scaledSp(23f),
+                fontWeight = FontWeight.Bold,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
+            Spacer(Modifier.height(scaled(2f)))
+            Text(
+                text = description,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                fontSize = scaledSp(15f),
+                fontWeight = FontWeight.Normal,
+                maxLines = 2,
+                overflow = TextOverflow.Ellipsis,
+            )
+        }
+        Box(
+            Modifier
+                .size(scaled(24f))
+                .clip(CircleShape)
+                .background(swatch),
+        )
+    }
 }
 
 private const val SWITCH_DENSITY_SCALE = 0.68f
