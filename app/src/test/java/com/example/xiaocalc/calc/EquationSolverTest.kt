@@ -237,9 +237,4 @@ class EquationSolverTest {
         assertEquals(EquationError.NOT_POLYNOMIAL, failed("sin(x)=0"))
         assertEquals(EquationError.NOT_POLYNOMIAL, failed("1÷x=0"))
     }
-
-    @Test
-    fun `高次暂时明确报不支持而不是给可疑结果`() {
-        assertEquals(EquationError.DEGREE_TOO_HIGH, failed("x^3-1=0"))
-    }
 }

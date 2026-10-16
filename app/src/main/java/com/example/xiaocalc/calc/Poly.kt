@@ -80,16 +80,20 @@ object PolynomialFit {
     /**
      * 尝试把 [expression] 看成关于 [variable] 的一元多项式。
      *
-     * @return 系数；不是多项式、或次数超过 [MAX_DEGREE] 时返回 null
+     * @param maxDegree 尝试到的最高次数。默认 [MAX_DEGREE]；
+     *                  调用方可用更大的值来**区分**"不是多项式"与"次数太高"——
+     *                  见 `EquationSolver` 里对错误分类的处理。
+     * @return 系数；不是多项式、或次数超过 [maxDegree] 时返回 null
      */
     fun fit(
         expression: String,
         variable: String = "x",
         angleUnit: AngleUnit = AngleUnit.DEG,
+        maxDegree: Int = MAX_DEGREE,
     ): Poly? {
         val eval = { x: String -> evaluateAt(expression, variable, BigDecimal(x), angleUnit) }
 
-        for (degree in 0..MAX_DEGREE) {
+        for (degree in 0..maxDegree) {
             val samples = (0..degree).mapNotNull { eval(it.toString()) }
             if (samples.size != degree + 1) return null
 

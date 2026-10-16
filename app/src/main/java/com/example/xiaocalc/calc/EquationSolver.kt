@@ -55,6 +55,9 @@ enum class EquationError {
     /** 次数超过支持上限 */
     DEGREE_TOO_HIGH,
 
+    /** 高次方程用数值迭代求根时未能收敛。宁可报错也不给未收敛的数值 */
+    NOT_CONVERGED,
+
     /** 恒等式，如 `x=x` */
     IDENTITY,
 
@@ -96,11 +99,35 @@ object EquationSolver {
         if (lhs.isEmpty() || rhs.isEmpty()) return EquationSolution.Failed(EquationError.NOT_POLYNOMIAL)
 
         // 移项成 f(x) = 左 − 右，于是"解方程"化为"求零点"
-        val poly = PolynomialFit.fit("($lhs)-($rhs)", VARIABLE, angleUnit)
-            ?: return EquationSolution.Failed(EquationError.NOT_POLYNOMIAL)
+        val expression = "($lhs)-($rhs)"
+        val poly = PolynomialFit.fit(expression, VARIABLE, angleUnit)
+            ?: return EquationSolution.Failed(classifyUnfittable(expression, angleUnit))
 
         return solvePoly(poly)
     }
+
+    /**
+     * 区分"不是多项式"与"次数太高"。
+     *
+     * [PolynomialFit] 对两者都返回 null，但它们的提示语完全不同：
+     * 把 12 次多项式说成"不像多项式"会把用户引向错误的方向。
+     *
+     * 做法是再往上试两阶——能拟合上就说明它确实是多项式，只是次数超了。
+     * 这是一个**启发式**：次数高于试到的上限时，仍会落到"不是多项式"。
+     * 对作业场景（几乎不会出现十几二十次方程）足够，且代价只在失败时产生。
+     */
+    private fun classifyUnfittable(expression: String, angleUnit: AngleUnit): EquationError {
+        val higher = PolynomialFit.fit(
+            expression,
+            VARIABLE,
+            angleUnit,
+            maxDegree = PolynomialFit.MAX_DEGREE + DIAGNOSTIC_EXTRA_DEGREES,
+        )
+        return if (higher != null) EquationError.DEGREE_TOO_HIGH else EquationError.NOT_POLYNOMIAL
+    }
+
+    /** 用于区分错误类型时额外尝试的阶数 */
+    private const val DIAGNOSTIC_EXTRA_DEGREES = 2
 
     private fun solvePoly(poly: Poly): EquationSolution {
         val coefficients = poly.coefficients
@@ -311,12 +338,111 @@ object EquationSolver {
     /**
      * 三次及以上。
      *
-     * 目前**尚不实现**，明确报"次数过高"而不是给出一个可疑的数值解——
-     * 下一步会接入 Durand–Kerner 迭代法。
+     * 走**先降次、再数值**的混合路线，而不是一上来就 Durand–Kerner：
+     *
+     *  1. 用有理根定理抽整数根，配精确的综合除法——作业题里的三次/四次方程
+     *     绝大多数都能这样降到二次；
+     *  2. 降到二次就地用前面的精确公式，于是 `x³-6x²+11x-6=0` 得到的是
+     *     `1, 2, 3` 而不是 `0.9999999999999983`；
+     *  3. 只有剩下的次数仍 ≥ 3 时才交给 [RootFinder]，且不收敛就报错。
      */
     private fun solveHigher(poly: Poly): EquationSolution {
-        // poly 本身暂时没有用途；参数保留是为了接入数值求根时不必改调用点
-        require(poly.degree >= 3) { "solveHigher 只处理三次及以上" }
-        return EquationSolution.Failed(EquationError.DEGREE_TOO_HIGH)
+        val (integerRoots, reduced) = extractIntegerRoots(poly)
+        // 显式标成基类型：后面要把二次/数值分支的根（可能是复数）并进来
+        val collected: MutableList<EquationRoot> = integerRoots
+            .map { realRoot(it, it.toBigIntegerExact().toString()) }
+            .toMutableList()
+
+        if (reduced.degree > 0) {
+            when (val remainder = if (reduced.degree <= 2) solvePoly(reduced) else numericSolution(reduced)) {
+                is EquationSolution.Solved -> collected += remainder.roots
+                is EquationSolution.Failed -> return remainder
+            }
+        }
+        return EquationSolution.Solved(collected, poly.degree)
     }
+
+    /** 数值求根；不收敛时明确失败，而不是交出未收敛的数值 */
+    private fun numericSolution(poly: Poly): EquationSolution {
+        val found = RootFinder.findAll(poly)
+            ?: return EquationSolution.Failed(EquationError.NOT_CONVERGED)
+        val roots = found.map { z ->
+            if (z.isReal) realRoot(z.re) else complexRoot(z.re, z.im, exact = null)
+        }
+        return EquationSolution.Solved(roots, poly.degree)
+    }
+
+    /**
+     * 抽掉所有能用有理根定理找到的**整数**根，并做精确综合除法降次。
+     *
+     * 只找整数根（有理根定理里 q = 1 的情形）：非整数有理根需要 `(qx−p)` 形式的
+     * 除法才能保持精确，而那类根在降次后通常落在二次公式里，仍能得到精确结果。
+     */
+    private fun extractIntegerRoots(poly: Poly): Pair<List<BigDecimal>, Poly> {
+        val found = mutableListOf<BigDecimal>()
+        var current = poly.normalized()
+
+        while (current.degree >= 1) {
+            // 常数项为 0 意味着 x 是因子，直接约去（比走因式搜索更快也更准）
+            if (current[0].signum() == 0) {
+                found += BigDecimal.ZERO
+                current = Poly(current.coefficients.drop(1)).normalized()
+                continue
+            }
+            val candidates = integerDivisors(current[0]) ?: break
+            val hit = candidates.firstOrNull { current.evaluate(it).signum() == 0 } ?: break
+            found += hit
+            current = divideByLinear(current, hit)
+        }
+        return found to current
+    }
+
+    /**
+     * 常数项的全部整数因子（含负号）；常数项不是整数或过大时返回 null。
+     *
+     * 上限存在的理由：试除候选数是因子个数，而 `10^9` 级的常数项可能有几百个因子，
+     * 每个都要做一次 O(n) 求值。超过上限就交给数值求根，不必在这里硬扛。
+     */
+    private fun integerDivisors(constant: BigDecimal): List<BigDecimal>? {
+        val value = constant.toBigIntegerExactOrNull() ?: return null
+        val magnitude = value.abs()
+        if (magnitude.signum() == 0) return listOf(BigDecimal.ZERO)
+        if (magnitude > DIVISOR_LIMIT) return null
+
+        val divisors = mutableListOf<BigDecimal>()
+        var i = BigInteger.ONE
+        while (i * i <= magnitude) {
+            if (magnitude % i == BigInteger.ZERO) {
+                val pair = magnitude / i
+                divisors += BigDecimal(i)
+                divisors += BigDecimal(i.negate())
+                if (pair != i) {
+                    divisors += BigDecimal(pair)
+                    divisors += BigDecimal(pair.negate())
+                }
+            }
+            i += BigInteger.ONE
+        }
+        return divisors
+    }
+
+    /**
+     * 综合除法：除以 `(x − root)`。
+     *
+     * 只在 [root] 确实是根（余数为 0）时调用；这里不检查余数，
+     * 因为调用点已经先用求值筛过一遍。
+     */
+    private fun divideByLinear(poly: Poly, root: BigDecimal): Poly {
+        val degree = poly.degree
+        val quotient = MutableList(degree) { BigDecimal.ZERO }
+        var carry = poly[degree]
+        for (i in degree - 1 downTo 0) {
+            quotient[i] = carry
+            carry = Dec.add(poly[i], Dec.mul(carry, root))
+        }
+        return Poly(quotient).normalized()
+    }
+
+    /** 因子搜索的上限 */
+    private val DIVISOR_LIMIT: BigInteger = BigInteger.valueOf(10_000_000L)
 }
