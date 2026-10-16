@@ -184,4 +184,64 @@ object PolynomialFit {
     }
 
     private val TOLERANCE: BigDecimal = BigDecimal("1E-30")
+
+    // ------------------------------------------------------------ 二元一次
+
+    /** 二元一次式的三个系数：`a·x + b·y + c` */
+    data class Linear2(val a: BigDecimal, val b: BigDecimal, val c: BigDecimal)
+
+    /**
+     * 尝试把 [expression] 看成 `a·x + b·y + c`。
+     *
+     * 只用三个格点就能定出全部系数，再用四个**不在**这些格点上的点回验——
+     * 与一元情形同一个思路：拟合完必须拿原表达式验一遍，
+     * 否则 `x·y` 这类非线性项会悄悄拟合出一个错的线性式。
+     */
+    fun fitLinear2(
+        expression: String,
+        varX: String = "x",
+        varY: String = "y",
+        angleUnit: AngleUnit = AngleUnit.DEG,
+    ): Linear2? {
+        val sample = { x: String, y: String ->
+            evaluateAt2(expression, varX, varY, BigDecimal(x), BigDecimal(y), angleUnit)
+        }
+
+        val f00 = sample("0", "0") ?: return null
+        val f10 = sample("1", "0") ?: return null
+        val f01 = sample("0", "1") ?: return null
+
+        val c = f00
+        val a = Dec.sub(f10, c)
+        val b = Dec.sub(f01, c)
+
+        val checks = listOf(
+            Triple("1", "1", Dec.add(Dec.add(a, b), c)),
+            Triple("2", "3", Dec.add(Dec.add(Dec.mul(a, of(2)), Dec.mul(b, of(3))), c)),
+            Triple("-1", "2", Dec.add(Dec.add(a.negate(), Dec.mul(b, of(2))), c)),
+            Triple("0.5", "-1.5", Dec.add(Dec.add(Dec.mul(a, BigDecimal("0.5")), Dec.mul(b, BigDecimal("-1.5"))), c)),
+        )
+        for ((x, y, expected) in checks) {
+            val actual = sample(x, y) ?: return null
+            if (!closeEnough(expected, actual)) return null
+        }
+        return Linear2(a, b, c)
+    }
+
+    private fun of(v: Int): BigDecimal = BigDecimal.valueOf(v.toLong())
+
+    private fun evaluateAt2(
+        expression: String,
+        varX: String,
+        varY: String,
+        x: BigDecimal,
+        y: BigDecimal,
+        angleUnit: AngleUnit,
+    ): BigDecimal? = try {
+        ExpressionEvaluator(expression, angleUnit, mapOf(varX to x, varY to y)).evaluate()
+    } catch (_: CalcException) {
+        null
+    } catch (_: ArithmeticException) {
+        null
+    }
 }

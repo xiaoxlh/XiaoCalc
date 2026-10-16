@@ -58,6 +58,9 @@ enum class EquationError {
     /** 高次方程用数值迭代求根时未能收敛。宁可报错也不给未收敛的数值 */
     NOT_CONVERGED,
 
+    /** 二元一次方程组需要恰好两个方程 */
+    EQUATION_COUNT,
+
     /** 恒等式，如 `x=x` */
     IDENTITY,
 
@@ -332,6 +335,14 @@ object EquationSolver {
     } catch (_: ArithmeticException) {
         null
     }
+
+    /**
+     * 精确分数写法，供二元一次方程组复用。
+     *
+     * 两个分量不都是整数时返回 null——此时调用方退化为显示小数。
+     */
+    internal fun rationalText(numerator: BigDecimal, denominator: BigDecimal): String? =
+        fraction(numerator.toBigIntegerExactOrNull(), denominator.toBigIntegerExactOrNull())
 
     // -------------------------------------------------------- 高次（数值求根）
 
