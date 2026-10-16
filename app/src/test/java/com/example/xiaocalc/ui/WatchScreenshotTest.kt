@@ -241,8 +241,12 @@ class WatchScreenshotTest {
 
     @Test
     fun settings() {
+        // 刻意让一个开关处于选中态：只拍"全关"的话，选中样式（颜色、滑块位置）
+        // 就没被任何快照覆盖，改坏了也看不出来
+        val controller = state()
+        controller.updateSettings { it.copy(keepRoot = true) }
         snapshot("settings") {
-            SettingsScreen(controller = state(), time = "10:24", onNavigate = {})
+            SettingsScreen(controller = controller, time = "10:24", onNavigate = {})
         }
     }
 

@@ -13,7 +13,6 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
@@ -26,15 +25,22 @@ import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Density
+import androidx.wear.compose.material3.SwitchButton
 import com.example.xiaocalc.adaptive.scaled
 import com.example.xiaocalc.adaptive.scaledSp
 
 /**
  * 设置项卡片：左标题/说明 + 右开关。
  *
- * 使用 MD3 的 [Switch]（自带状态动画与无障碍语义），但放在一个**缩放过的密度**里：
- * MD3 开关默认按 48dp 命中区设计，在 240dp 的表盘上会占据太多空间，
- * 这里统一缩到约 0.68，兼顾"仍是标准 MD3 组件"与手表上的密度。
+ * 改用**官方手表组件** [SwitchButton]，而不是把常规 MD3 开关塞进一个缩放过的密度里。
+ *
+ * 旧做法（`DensityScale(0.68f)` + 常规 `Switch`）是个不得已的 hack：
+ * MD3 开关按 48dp 命中区设计，在 240dp 的表盘上占太多空间，只能整体缩小；
+ * 而缩小后的命中区与字号都不再符合任何一套规范。
+ *
+ * [SwitchButton] 是为手表尺寸设计的，自带 label / secondaryLabel 插槽，
+ * 并带 Expressive 的按压形变（`SurfaceTransformation`）——
+ * 这些都不是"看起来差不多"，而是规范里就有的东西。
  */
 @Composable
 fun SettingRow(
@@ -44,21 +50,11 @@ fun SettingRow(
     onToggle: (Boolean) -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    Row(
-        modifier = modifier
-            .fillMaxWidth()
-            .clip(RoundedCornerShape(scaled(20f)))
-            .background(MaterialTheme.colorScheme.surfaceContainer)
-            .clickable(role = Role.Switch, onClick = { onToggle(!checked) })
-            .padding(
-                start = scaled(18f),
-                end = scaled(8f),
-                top = scaled(8f),
-                bottom = scaled(8f),
-            ),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        Column(Modifier.weight(1f)) {
+    SwitchButton(
+        checked = checked,
+        onCheckedChange = onToggle,
+        modifier = modifier.fillMaxWidth(),
+        label = {
             Text(
                 text = title,
                 color = MaterialTheme.colorScheme.onSurface,
@@ -67,7 +63,8 @@ fun SettingRow(
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
             )
-            Spacer(Modifier.height(scaled(2f)))
+        },
+        secondaryLabel = {
             Text(
                 text = description,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
@@ -76,11 +73,8 @@ fun SettingRow(
                 maxLines = 2,
                 overflow = TextOverflow.Ellipsis,
             )
-        }
-        DensityScale(SWITCH_DENSITY_SCALE) {
-            Switch(checked = checked, onCheckedChange = onToggle)
-        }
-    }
+        },
+    )
 }
 
 /** 在局部把 dp 的物理换算整体缩小，使内嵌的 MD3 组件贴合手表尺度 */
