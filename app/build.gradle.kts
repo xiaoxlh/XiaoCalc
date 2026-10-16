@@ -81,6 +81,22 @@ kotlin {
     }
 }
 
+/**
+ * 让 `check` 真正校验截图金标。
+ *
+ * Paparazzi 把"渲染"和"比对"拆成了两个任务：`testDebugUnitTest` 只是把每个快照
+ * 渲染出来写进 `src/test/snapshots/`，**不做任何比较**；真正的比对在
+ * `verifyPaparazziDebug` 里。
+ *
+ * 这个坑的代价很实在：升级 Paparazzi 1.3.3 → 2.0.0-alpha05 后，新 layoutlib 让
+ * 约 1.35% 的像素（字形光栅化）发生变化，而当时跑的是 `testDebugUnitTest`，
+ * 于是"快照全绿"是假的——把一张金标整幅涂成全白，它照样通过。
+ * 挂到 `check` 上之后，`./gradlew check` 才是一句可信的话。
+ */
+tasks.named("check") {
+    dependsOn("verifyPaparazziDebug")
+}
+
 dependencies {
     // Compose 版本统一由 BOM 决定：ui / foundation / runtime 1.11.2，material3 1.4.0
     // 选 2026.05.01 而非最新 BOM，是因为 Paparazzi 2.0.0-alpha05 官方声明的 Compose 版本
