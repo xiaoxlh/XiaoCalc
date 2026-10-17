@@ -35,8 +35,8 @@ android {
         applicationId = "com.example.xiaocalc"
         minSdk = 26
         targetSdk = 34
-        versionCode = 6
-        versionName = "1.2.0"
+        versionCode = 20
+        versionName = "2.0.0"
     }
 
     buildTypes {
