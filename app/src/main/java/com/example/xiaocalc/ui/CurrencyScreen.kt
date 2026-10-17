@@ -151,80 +151,53 @@ fun CurrencyScreen(
                 center = { ClockText(time) },
             )
 
-            // -------------------------------------------------------- 选择行
-            val extra = layout.extraRow
-            if (extra != null) {
-                Spacer(Modifier.height(scaled(extra.top - layout.header.bottom)))
-                val gap = WatchLayout.KEY_GAP
-                val widths = WatchLayout.distribute(
-                    extra.maxWidth,
-                    gap,
-                    listOf(FROM_TO_WEIGHT, FROM_TO_WEIGHT, DATE_WEIGHT),
-                )
-                Row(
-                    modifier = Modifier.width(scaled(extra.maxWidth)),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(scaled(gap)),
-                ) {
-                    // 币种代码是主要交互，汇率日期只是上下文：字号差一档，宽度也收窄。
-                    // 交换动作放在键盘右下角——与单位换算页同一个位置。两个页面的
-                    // "对调"因此永远是同一个手势，不必各记一套。
-                    SelectChip(
-                        label = state.from.code,
+            // ---------------------------------------------------------- 显示区
+            // 只有**真正的错误**（算式有误、请求失败）才走 CalcDisplay 的 error 槽——
+            // 那里是红色粗体，用来提示"还没有汇率"、"正在获取"会让人以为出了问题。
+            // 这类中性状态改走结果槽，用正常的字色显示。
+            //
+            // 币种胶囊贴在各自那一行的最左端（与单位换算页同一套结构）：
+            // 起算币种对着输入数，目标币种对着结果数，位置本身就说明了归属。
+            val converted = state.convertedText(settings)
+            val errorText = state.inputError(settings)
+                ?: (state.status as? RateStatus.Failed)?.reason
+            val rowHeight = layout.display.height / 2f
+            val chipHeight = rowHeight - WatchLayout.DISPLAY_CHIP_INSET
+            Spacer(Modifier.height(scaled(layout.display.top - layout.header.bottom)))
+            CalcDisplay(
+                expression = state.input,
+                result = converted ?: if (errorText == null) hintText(state) else "",
+                errorMessage = errorText,
+                zone = layout.display,
+                expressionScroll = expressionScroll,
+                resultScroll = expressionScroll,
+                resultPrefix = "",
+                expressionRowDu = rowHeight,
+                expressionMaxFontDu = 24f,
+                expressionLeading = {
+                    CurrencyChip(
+                        code = state.from.code,
                         description = "起算货币，${state.from.display}",
-                        widthDu = widths[0],
-                        heightDu = extra.height,
-                        emphasis = ChipEmphasis.PRIMARY,
+                        heightDu = chipHeight,
                         hapticsEnabled = hapticsEnabled,
                         onClick = {
                             picker = CurrencyPicker.FROM
                             pickerOpen = true
                         },
                     )
-                    SelectChip(
-                        label = state.to.code,
+                },
+                resultLeading = {
+                    CurrencyChip(
+                        code = state.to.code,
                         description = "目标货币，${state.to.display}",
-                        widthDu = widths[1],
-                        heightDu = extra.height,
-                        emphasis = ChipEmphasis.PRIMARY,
+                        heightDu = chipHeight,
                         hapticsEnabled = hapticsEnabled,
                         onClick = {
                             picker = CurrencyPicker.TO
                             pickerOpen = true
                         },
                     )
-                    // 汇率日期：既说明"这份汇率是哪天的"，也暗示是否需要更新
-                    SelectChip(
-                        label = state.cachedDate?.takeLast(5) ?: "未更新",
-                        description = "汇率日期，点击更新",
-                        widthDu = widths[2],
-                        heightDu = extra.height,
-                        emphasis = ChipEmphasis.SECONDARY,
-                        hapticsEnabled = hapticsEnabled,
-                        onClick = { refreshTick++ },
-                    )
-                }
-                Spacer(Modifier.height(scaled(layout.display.top - extra.bottom)))
-            } else {
-                Spacer(Modifier.height(scaled(layout.display.top - layout.header.bottom)))
-            }
-
-            // ---------------------------------------------------------- 显示区
-            // 只有**真正的错误**（算式有误、请求失败）才走 CalcDisplay 的 error 槽——
-            // 那里是红色粗体，用来提示"还没有汇率"、"正在获取"会让人以为出了问题。
-            // 这类中性状态改走结果槽，用正常的字色显示。
-            val converted = state.convertedText(settings)
-            val errorText = state.inputError(settings)
-                ?: (state.status as? RateStatus.Failed)?.reason
-            CalcDisplay(
-                expression = if (state.input.isEmpty()) "" else "${state.input} ${state.from.code}",
-                result = converted?.let { "$it ${state.to.code}" }
-                    ?: if (errorText == null) hintText(state) else "",
-                errorMessage = errorText,
-                zone = layout.display,
-                expressionScroll = expressionScroll,
-                resultScroll = expressionScroll,
-                resultPrefix = if (converted != null) "= " else "",
+                },
             )
 
             // ------------------------------------------------------------ 键盘
@@ -437,9 +410,9 @@ private fun CurrencyActionBar(
                 heightDu = zone.height,
                 hapticsEnabled = hapticsEnabled,
                 onKey = { haptics(true); onRefresh() },
-                glyphOverride = "更新",
-                fontSizeOverride = scaledSp(18f),
-                fontWeightOverride = FontWeight.Bold,
+                // 一个汉字要占满整格才看得清；箭头图形在小尺寸下反而更好认
+                icon = WatchVectorIcons.Refresh,
+                description = "更新汇率",
                 containerOverride = MaterialTheme.colorScheme.secondary,
                 contentOverride = MaterialTheme.colorScheme.onSecondary,
             )
@@ -448,9 +421,28 @@ private fun CurrencyActionBar(
 }
 
 /**
- * 选择行三个格子的宽度权重。
+ * 显示行左侧的币种胶囊。
  *
- * 币种代码是主要交互，占 1.27 倍于"日期"的宽度；字号也差一档。
+ * 与单位换算页的 [UnitChip] 同一套尺寸：两行等宽，右边的数字才能上下对齐。
  */
-private const val FROM_TO_WEIGHT = 1.30f
-private const val DATE_WEIGHT = 1.02f
+@Composable
+private fun CurrencyChip(
+    code: String,
+    description: String,
+    heightDu: Float,
+    hapticsEnabled: Boolean,
+    onClick: () -> Unit,
+) {
+    SelectChip(
+        label = code,
+        description = description,
+        widthDu = WatchLayout.DISPLAY_CHIP_WIDTH,
+        heightDu = heightDu,
+        emphasis = ChipEmphasis.PRIMARY,
+        hapticsEnabled = hapticsEnabled,
+        onClick = onClick,
+        showChevron = true,
+    )
+}
+
+

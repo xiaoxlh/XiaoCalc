@@ -49,6 +49,28 @@ object WatchVectorIcons {
         vector(SWAP_PATH)
     }
 
+    /**
+     * 下拉指示（Material Symbols 的 arrow_drop_down）。
+     *
+     * 胶囊上只写 `m`、`CNY` 这样的符号时，填充色只能暗示"可点"；
+     * 加一个小三角才明确读作"点我换一个"。
+     */
+    private const val CHEVRON_DOWN_PATH = "M7 10l5 5 5-5z"
+
+    val ChevronDown: ImageVector by lazy {
+        vector(CHEVRON_DOWN_PATH)
+    }
+
+    /** 刷新（Material Symbols 的 refresh）。货币页的"更新"原先是一个汉字，占满整格 */
+    private const val REFRESH_PATH =
+        "M17.65 6.35C16.2 4.9 14.21 4 12 4c-4.42 0-7.99 3.58-8 8s3.57 8 8 8" +
+            "c3.73 0 6.84-2.55 7.73-6h-2.08c-.82 2.33-3.04 4-5.65 4-3.31 0-6-2.69-6-6" +
+            "s2.69-6 6-6c1.66 0 3.14.69 4.22 1.78L13 11h7V4l-2.35 2.35z"
+
+    val Refresh: ImageVector by lazy {
+        vector(REFRESH_PATH)
+    }
+
     private fun vector(path: String): ImageVector =
         ImageVector.Builder(
             name = "WatchIcon",

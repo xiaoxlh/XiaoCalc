@@ -14,6 +14,10 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxHeight
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.width
@@ -27,6 +31,7 @@ import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
+import com.example.xiaocalc.adaptive.WatchLayout
 import com.example.xiaocalc.adaptive.Zone
 import com.example.xiaocalc.adaptive.scaled
 import com.example.xiaocalc.adaptive.scaledSp
@@ -69,6 +74,20 @@ fun CalcDisplay(
      * 再叠一个前缀会变成 `= x = 1, 2`——两个等号，读起来是错的。
      */
     resultPrefix: String = "= ",
+    /**
+     * 表达式行左侧的附加内容（单位/货币选择胶囊）。
+     *
+     * 放在行内而不是另起一行，是因为"单位属于这个数"——把它挪到单独的顶栏后，
+     * 用户得靠位置去对应哪个单位属于哪一行；贴在数字左边就没有这个问题，
+     * 而且腾出的那一整行还给了键盘和大字号。
+     */
+    expressionLeading: (@Composable () -> Unit)? = null,
+    /** 结果行左侧的附加内容（起算单位 / 目标货币） */
+    resultLeading: (@Composable () -> Unit)? = null,
+    /** 表达式行高。带胶囊时需要更高的行，才能让胶囊保留可点按的高度 */
+    expressionRowDu: Float = EXPRESSION_ROW_DU,
+    /** 表达式行字号上限 */
+    expressionMaxFontDu: Float = EXPRESSION_MAX_FONT_DU,
 ) {
     val errorColor = MaterialTheme.colorScheme.error
     val resultColor = MaterialTheme.colorScheme.onBackground
@@ -88,7 +107,7 @@ fun CalcDisplay(
     val shakePx = with(density) { scaled(7f).toPx() }
 
     // 结果行拿到显示区的剩余高度；字号上限由该行高与 MiSans 行高比反推
-    val resultMaxFontDu = (zone.height - EXPRESSION_ROW_DU) / MISANS_LINE_HEIGHT_RATIO * 0.98f
+    val resultMaxFontDu = (zone.height - expressionRowDu) / MISANS_LINE_HEIGHT_RATIO * 0.98f
 
     Column(
         modifier = modifier
@@ -96,26 +115,35 @@ fun CalcDisplay(
             .height(scaled(zone.height)),
         verticalArrangement = Arrangement.Bottom,
     ) {
-        // ---- 第 1 行：表达式（整宽右对齐）----
-        BoxWithConstraints(
-            modifier = Modifier.fillMaxWidth().height(scaled(EXPRESSION_ROW_DU)),
-            contentAlignment = Alignment.CenterEnd,
+        // ---- 第 1 行：表达式（可选左侧胶囊 + 整宽右对齐）----
+        Row(
+            modifier = Modifier.fillMaxWidth().height(scaled(expressionRowDu)),
+            verticalAlignment = Alignment.CenterVertically,
         ) {
-            val available = maxWidth
-            Box(
-                modifier = Modifier.horizontalScroll(expressionScroll, reverseScrolling = true),
+            if (expressionLeading != null) {
+                expressionLeading()
+                Spacer(Modifier.width(scaled(WatchLayout.DISPLAY_CHIP_GAP)))
+            }
+            BoxWithConstraints(
+                modifier = Modifier.weight(1f).fillMaxHeight(),
                 contentAlignment = Alignment.CenterEnd,
             ) {
-                AutoSizeText(
-                    text = expression,
-                    maxWidth = available,
-                    maxFontSize = scaledSp(EXPRESSION_MAX_FONT_DU),
-                    minFontSize = scaledSp(13f),
-                    color = expressionColor,
-                    fontWeight = FontWeight.Medium,
-                    style = NumTextStyle,
-                    textAlign = TextAlign.End,
-                )
+                val available = maxWidth
+                Box(
+                    modifier = Modifier.horizontalScroll(expressionScroll, reverseScrolling = true),
+                    contentAlignment = Alignment.CenterEnd,
+                ) {
+                    AutoSizeText(
+                        text = expression,
+                        maxWidth = available,
+                        maxFontSize = scaledSp(expressionMaxFontDu),
+                        minFontSize = scaledSp(13f),
+                        color = expressionColor,
+                        fontWeight = FontWeight.Medium,
+                        style = NumTextStyle,
+                        textAlign = TextAlign.End,
+                    )
+                }
             }
         }
 
@@ -124,7 +152,7 @@ fun CalcDisplay(
             text = errorMessage ?: if (result.isEmpty()) "" else "$resultPrefix$result",
             isError = errorMessage != null,
         )
-        BoxWithConstraints(
+        Box(
             modifier = Modifier
                 .fillMaxWidth()
                 .weight(1f)
@@ -135,38 +163,51 @@ fun CalcDisplay(
                         sin(shake.value * PI * 6).toFloat() * shakePx * (1f - shake.value)
                     }
                 },
-            contentAlignment = Alignment.CenterEnd,
         ) {
-            val available = maxWidth
-            AnimatedContent(
-                targetState = visual,
-                transitionSpec = {
-                    (
-                        fadeIn(Motion.enter(Motion.DURATION_SHORT4)) +
-                            scaleIn(
-                                initialScale = 0.90f,
-                                animationSpec = Motion.enter(Motion.DURATION_MEDIUM1),
-                            )
-                        ).togetherWith(fadeOut(Motion.exit(Motion.DURATION_SHORT3)))
-                },
-                label = "result",
-            ) { state ->
-                Box(
-                    modifier = Modifier.horizontalScroll(resultScroll, reverseScrolling = true),
+            Row(
+                modifier = Modifier.fillMaxSize(),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                if (resultLeading != null) {
+                    resultLeading()
+                    Spacer(Modifier.width(scaled(WatchLayout.DISPLAY_CHIP_GAP)))
+                }
+                BoxWithConstraints(
+                    modifier = Modifier.weight(1f).fillMaxHeight(),
                     contentAlignment = Alignment.CenterEnd,
                 ) {
-                    AutoSizeText(
-                        text = state.text,
-                        maxWidth = available,
-                        maxFontSize = scaledSp(
-                            if (state.isError) ERROR_MAX_FONT_DU else resultMaxFontDu,
-                        ),
-                        minFontSize = scaledSp(15f),
-                        color = if (state.isError) errorColor else resultColor,
-                        fontWeight = FontWeight.Black,
-                        style = NumTextStyle,
-                        textAlign = TextAlign.End,
-                    )
+                    val available = maxWidth
+                    AnimatedContent(
+                        targetState = visual,
+                        transitionSpec = {
+                            (
+                                fadeIn(Motion.enter(Motion.DURATION_SHORT4)) +
+                                    scaleIn(
+                                        initialScale = 0.90f,
+                                        animationSpec = Motion.enter(Motion.DURATION_MEDIUM1),
+                                    )
+                                ).togetherWith(fadeOut(Motion.exit(Motion.DURATION_SHORT3)))
+                        },
+                        label = "result",
+                    ) { state ->
+                        Box(
+                            modifier = Modifier.horizontalScroll(resultScroll, reverseScrolling = true),
+                            contentAlignment = Alignment.CenterEnd,
+                        ) {
+                            AutoSizeText(
+                                text = state.text,
+                                maxWidth = available,
+                                maxFontSize = scaledSp(
+                                    if (state.isError) ERROR_MAX_FONT_DU else resultMaxFontDu,
+                                ),
+                                minFontSize = scaledSp(15f),
+                                color = if (state.isError) errorColor else resultColor,
+                                fontWeight = FontWeight.Black,
+                                style = NumTextStyle,
+                                textAlign = TextAlign.End,
+                            )
+                        }
+                    }
                 }
             }
         }

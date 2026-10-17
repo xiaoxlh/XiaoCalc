@@ -55,6 +55,14 @@ fun <T> PickerOverlay(
     onDismiss: () -> Unit,
     scrollState: ScrollState,
     modifier: Modifier = Modifier,
+    /**
+     * 标题右侧的附加控件。
+     *
+     * 单位选择器用它放"当前类别"——点一下钻进类别列表，选完再回到单位列表。
+     * 用同一个面板做两级选择，比在表盘上再挤一个常驻的类别按钮省地方，
+     * 也比把 71 个单位平铺成一张长列表好找。
+     */
+    titleAction: (@Composable () -> Unit)? = null,
 ) {
     Box(
         modifier = modifier.fillMaxSize(),
@@ -80,19 +88,28 @@ fun <T> PickerOverlay(
             shadowElevation = 8.dp,
         ) {
             Column(Modifier.padding(vertical = scaled(8f))) {
-                Text(
-                    text = title,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    fontSize = scaledSp(19f),
-                    fontWeight = FontWeight.Bold,
-                    maxLines = 1,
-                    modifier = Modifier.padding(
-                        start = scaled(18f),
-                        end = scaled(18f),
-                        top = scaled(6f),
-                        bottom = scaled(8f),
-                    ),
-                )
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(
+                            start = scaled(18f),
+                            end = scaled(14f),
+                            top = scaled(6f),
+                            bottom = scaled(8f),
+                        ),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                ) {
+                    Text(
+                        text = title,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        fontSize = scaledSp(19f),
+                        fontWeight = FontWeight.Bold,
+                        maxLines = 1,
+                        modifier = Modifier.weight(1f, fill = false),
+                    )
+                    titleAction?.invoke()
+                }
                 Column(
                     modifier = Modifier
                         .heightIn(max = scaled(PICKER_LIST_MAX_DU))

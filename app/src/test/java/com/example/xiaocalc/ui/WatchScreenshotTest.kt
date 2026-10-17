@@ -28,6 +28,7 @@ import com.example.xiaocalc.calc.RateCodec
 import com.example.xiaocalc.calc.RateTable
 import com.example.xiaocalc.calc.ThemeColor
 import com.example.xiaocalc.calc.UnitCategory
+import com.example.xiaocalc.calc.Units
 import com.example.xiaocalc.calc.UnitConverterState
 import com.example.xiaocalc.data.RateSource
 import com.example.xiaocalc.design.XiaoCalcTheme
@@ -252,7 +253,7 @@ class WatchScreenshotTest {
 
     // ------------------------------------------------------------------ 单位换算
 
-    /** 换算页是纵向分段最多的页面（顶栏/选择行/显示区/键盘/操作行），最需要肉眼复核 */
+    /** 换算页是纵向分段最多的页面（顶栏/显示区两行/键盘/操作行），最需要肉眼复核 */
     @Test
     fun units_length() {
         val converter = UnitConverterState()
@@ -297,6 +298,27 @@ class WatchScreenshotTest {
                 onSelect = {},
                 onDismiss = {},
                 scrollState = rememberScrollState(),
+            )
+        }
+    }
+
+    /**
+     * 单位列表：标题右侧那颗「长度 ⌄」是钻进类别列表的入口。
+     *
+     * 标题行从单个 Text 改成了 Row，标题一长就会把胶囊挤出面板；
+     * 这张图守着那个改动的结果。
+     */
+    @Test
+    fun units_picker_units() {
+        snapshot("units_picker_units") {
+            UnitPicker(
+                title = "起算单位",
+                options = Units.catalog.getValue(UnitCategory.LENGTH),
+                selected = Units.catalog.getValue(UnitCategory.LENGTH).first(),
+                onSelect = {},
+                onDismiss = {},
+                scrollState = rememberScrollState(),
+                categoryAction = { CategoryDrilldownChip(label = "长度", onClick = {}) },
             )
         }
     }

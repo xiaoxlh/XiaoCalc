@@ -116,6 +116,19 @@ data class WatchLayout(
          */
         const val BAND_SAFETY = 0.96f
 
+        /**
+         * 单位/货币页里贴在数字行左侧的选择胶囊。
+         *
+         * 两行共用同一宽度，右边的数字才会上下对齐——这是"上下对读"的前提。
+         * [DISPLAY_CHIP_INSET] 是胶囊比行高矮掉的部分（上下各一半），
+         * 留出呼吸空间的同时保住 30du（≈19dp）以上的可点按高度。
+         */
+        const val DISPLAY_CHIP_WIDTH = 74f
+        const val DISPLAY_CHIP_INSET = 8f
+
+        /** 胶囊与数字之间的留白。由 [com.example.xiaocalc.ui.components.CalcDisplay] 应用 */
+        const val DISPLAY_CHIP_GAP = 7f
+
         // ---------------- 圆形屏（D = 384 即表盘外接正方形，R = 192） ----------------
         // 顶栏不能贴到最顶端：y=8 处弦长只有 105du，居中的时钟右侧仅剩约 26du，
         // 放不下 36du 的溢出菜单命中区（会与时钟字形重叠）。下移到 y=16 后有 147du，
@@ -149,12 +162,26 @@ data class WatchLayout(
         private const val S_CONTENT_TOP = 62f
         private const val S_CONTENT_HEIGHT = 280f
 
-        // ---------------- 单位换算页 ----------------
-        // 比标准布局多一条 44du 的"单位选择行"，代价是键盘与显示区各让出一点。
+        // ---------------- 单位/货币页 ----------------
+        // 单位选择胶囊已经搬进"表达式行 / 结果行"的最左侧，因此不再需要
+        // 那条独立的 44du 选择行。省下的高度分给了两处：
+        //   · 显示区 56 → 86du，两行各 43du，胶囊才有可点按的高度；
+        //   · 键盘 144 → 148du，键反而比带选择行时更大。
         //
-        // 为什么非要多这一行：单位选择器是**主要交互**，必须有可靠的触控目标。
-        // 塞进显示区的话每行只剩约 23du（≈14dp），远低于手表可用的点按尺寸；
-        // 而 44du ≈ 27.5dp 与底部操作行同级，手感一致。
+        // 显示区没有顶到 58du：那里弦长只有 264du，16 位数字会被压得很小。
+        // 下移到 68du 后弦长 281du，是"胶囊够高"与"数字够宽"之间的折中。
+        private const val U2_DISPLAY_TOP = 68f
+        private const val U2_DISPLAY_HEIGHT = 86f
+        private const val U2_KEYPAD_TOP = 158f
+        private const val U2_KEYPAD_HEIGHT = 148f
+
+        private const val SU2_DISPLAY_TOP = 70f
+        private const val SU2_DISPLAY_HEIGHT = 86f
+        private const val SU2_KEYPAD_TOP = 160f
+        private const val SU2_KEYPAD_HEIGHT = 148f
+
+        // ---------------- 方程页 ----------------
+        // 仍保留那条额外行：它要放 `^ ( ) =` 四个符号键。
         private const val U_PICKER_TOP = 58f
         private const val U_PICKER_HEIGHT = 44f
         private const val U_DISPLAY_TOP = 104f
@@ -174,22 +201,6 @@ data class WatchLayout(
         private const val SU_ACTION_HEIGHT = 42f
 
         fun of(round: Boolean): WatchLayout = if (round) roundLayout() else squareLayout()
-
-        /**
-         * 按权重把一行切成若干等间距的格子。
-         *
-         * 选择行里的按钮**不是等权的**："起算单位/目标单位"是主要交互，
-         * "类别"与"汇率日期"只是上下文，等分会把注意力平摊掉。
-         * 权重让主要项拿到接近 2 倍的宽度，层级靠尺寸而不仅靠颜色表达。
-         */
-        fun distribute(totalDu: Float, gapDu: Float, weights: List<Float>): List<Float> {
-            require(weights.isNotEmpty()) { "weights must not be empty" }
-            require(weights.all { it > 0f }) { "weights must be positive: $weights" }
-            val free = totalDu - (weights.size - 1) * gapDu
-            require(free > 0f) { "no room for ${weights.size} items in $totalDu" }
-            val sum = weights.sum()
-            return weights.map { free * it / sum }
-        }
 
         /**
          * 带"额外操作行"的布局，供单位换算页与方程页共用。
@@ -232,8 +243,35 @@ data class WatchLayout(
             )
         }
 
-        /** 单位换算页：额外行里放"类别 / 起算单位 / 目标单位"三个选择器 */
-        fun units(round: Boolean): WatchLayout = withExtraRow(round)
+        /** 单位换算页 / 货币换算页：选择胶囊在数字行内，因此不需要额外行 */
+        fun units(round: Boolean): WatchLayout = if (round) {
+            WatchLayout(
+                round = true,
+                sideMargin = 0f,
+                header = band(R_HEADER_TOP, R_HEADER_HEIGHT),
+                display = band(U2_DISPLAY_TOP, U2_DISPLAY_HEIGHT),
+                keypad = band(U2_KEYPAD_TOP, U2_KEYPAD_HEIGHT),
+                keyRows = roundKeyRows(U2_KEYPAD_TOP, U2_KEYPAD_HEIGHT),
+                actionRow = band(R_ACTION_TOP, R_ACTION_HEIGHT),
+                content = band(R_CONTENT_TOP, R_CONTENT_HEIGHT),
+            )
+        } else {
+            val available = Disc.DESIGN - 2f * S_MARGIN
+            WatchLayout(
+                round = false,
+                sideMargin = S_MARGIN,
+                header = Zone(S_HEADER_TOP, S_HEADER_HEIGHT, available),
+                display = Zone(SU2_DISPLAY_TOP, SU2_DISPLAY_HEIGHT, available),
+                keypad = Zone(SU2_KEYPAD_TOP, SU2_KEYPAD_HEIGHT, available),
+                keyRows = squareKeyRows(SU2_KEYPAD_TOP, SU2_KEYPAD_HEIGHT, available),
+                actionRow = Zone(
+                    SU_ACTION_TOP,
+                    SU_ACTION_HEIGHT,
+                    squareGridWidth(SU2_KEYPAD_HEIGHT, available),
+                ),
+                content = Zone(S_CONTENT_TOP, S_CONTENT_HEIGHT, available),
+            )
+        }
 
         /** 方程页：额外行里放 `^ ( ) =` 四个符号键 */
         fun equation(round: Boolean): WatchLayout = withExtraRow(round)

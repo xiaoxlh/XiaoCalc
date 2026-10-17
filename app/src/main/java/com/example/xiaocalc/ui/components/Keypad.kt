@@ -18,6 +18,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -187,6 +188,8 @@ fun CalcKeyButton(
     /** 形状覆盖：分页胶囊用胶囊形，与普通键的圆角矩形区分开 */
     shape: Shape = RoundedCornerShape(percent = KEY_CORNER_PERCENT),
     fontWeightOverride: FontWeight? = null,
+    /** 标签右侧的小图标（下拉三角等），与标签同色 */
+    trailingIcon: ImageVector? = null,
 ) {
     val haptics = rememberKeyHaptics(hapticsEnabled)
     val interaction = remember { MutableInteractionSource() }
@@ -238,17 +241,44 @@ fun CalcKeyButton(
             )
             return@Box
         }
-        Text(
-            text = glyphOverride ?: key.label,
-            color = content,
-            fontSize = fontSizeOverride ?: scaledSp(
-                labelFontDu(key, minOf(widthDu, heightDu)),
-            ),
-            fontWeight = fontWeightOverride
-                ?: if (key.kind == KeyKind.EQUALS) FontWeight.Bold else FontWeight.Medium,
-            style = NumTextStyle,
-            maxLines = 1,
+        val text = glyphOverride ?: key.label
+        val fontSize = fontSizeOverride ?: scaledSp(
+            labelFontDu(key, minOf(widthDu, heightDu)),
         )
+        val weight = fontWeightOverride
+            ?: if (key.kind == KeyKind.EQUALS) FontWeight.Bold else FontWeight.Medium
+        if (trailingIcon == null) {
+            Text(
+                text = text,
+                color = content,
+                fontSize = fontSize,
+                fontWeight = weight,
+                style = NumTextStyle,
+                maxLines = 1,
+            )
+            return@Box
+        }
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.Center,
+        ) {
+            Text(
+                text = text,
+                color = content,
+                fontSize = fontSize,
+                fontWeight = weight,
+                style = NumTextStyle,
+                maxLines = 1,
+            )
+            Icon(
+                imageVector = trailingIcon,
+                contentDescription = null,
+                tint = content,
+                modifier = Modifier
+                    .padding(start = scaled(2f))
+                    .size(scaled(heightDu * 0.5f)),
+            )
+        }
     }
 }
 

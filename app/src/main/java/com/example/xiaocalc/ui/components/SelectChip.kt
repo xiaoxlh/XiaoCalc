@@ -48,6 +48,8 @@ fun SelectChip(
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
     icon: ImageVector? = null,
+    /** 是否在右侧画一个小三角，表明"点它会展开一个列表" */
+    showChevron: Boolean = false,
 ) {
     CalcKeyButton(
         // 胶囊不是按键，[CalcKey] 只是 CalcKeyButton 的入参形态；
@@ -72,6 +74,7 @@ fun SelectChip(
             ChipEmphasis.PRIMARY -> MaterialTheme.colorScheme.onSurface
             ChipEmphasis.SECONDARY -> MaterialTheme.colorScheme.onSurfaceVariant
         },
+        trailingIcon = if (showChevron) WatchVectorIcons.ChevronDown else null,
     )
 }
 

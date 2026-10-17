@@ -6,14 +6,11 @@ import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.foundation.ScrollState
 import androidx.compose.foundation.gestures.scrollBy
-import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
@@ -53,25 +50,33 @@ import com.example.xiaocalc.ui.components.rememberKeyHaptics
 import com.example.xiaocalc.ui.components.rotaryTarget
 import kotlinx.coroutines.launch
 
-/** 单位页当前打开的选择器 */
-private enum class PickerKind { CATEGORY, FROM, TO }
+/** 选择器要改的是哪一端 */
+private enum class UnitEnd { FROM, TO }
+
+/** 选择器当前显示的是单位列表还是类别列表 */
+private enum class PickerPane { UNITS, CATEGORY }
 
 /**
  * 单位换算页。
  *
- * 纵向五段：顶栏（返回 + 时钟）→ **单位选择行** → 显示区 → 键盘 → 底部操作行。
- * 比计算器多出的"单位选择行"由 [WatchLayout.units] 提供。
+ * 纵向四段：顶栏 → 显示区（两行，每行左侧一个单位胶囊）→ 键盘 → 底部操作行。
  *
- * 三条设计取舍：
+ * ## 单位胶囊为什么贴在数字行左侧
  *
- * 1. **单位选择器不塞进显示区**。显示区每行只有约 23du（≈14dp），
- *    低于手表可用的点按尺寸；选择行给到 44du（≈27.5dp），与底部按钮同级手感。
+ * 早先的版本在显示区上方单独排一行"类别 / 起算 / 目标"三个胶囊。问题在于
+ * **位置不表达归属**：三颗胶囊并排，用户得记住"中间那颗管上面那行"；
+ * 而且那一行本身要吃掉 44du，等于用一整行换三个按钮。
  *
- * 2. **结果是实时的，因此键盘上的 `=` 被改标为"换"**（交换起算/目标单位）。
- *    留一个按下去什么也不发生的 `=` 比换个标签更糟。
+ * 现在把胶囊放进各自那一行的最左端——"这个数是什么单位"与"这个数"贴在一起，
+ * 不需要任何记忆负担。右侧只剩纯数字，也能多出一点宽度给 16 位结果。
+ * 省下的那一行还给了显示区与键盘：两行各 43du，胶囊仍有 35du 的可点按高度。
  *
- * 3. **输入框沿用计算器的求值器**，值可以是表达式（`100+20`、`2^10`），
- *    于是"先算再换算"不必来回切页。
+ * ## 类别去哪里了
+ *
+ * 类别不是每次换算都要改的东西，没必要常驻。它变成了**单位选择器里的第二级**：
+ * 选择器标题右侧那颗「长度 ⌄」点一下钻进类别列表，选完自动回到单位列表。
+ * 同一个面板做两级，比在表盘上再挤一个常驻按钮省地方，也比把 71 个单位
+ * 平铺成一张长列表好找。
  */
 @Composable
 fun UnitsScreen(
@@ -88,12 +93,15 @@ fun UnitsScreen(
 
     var keypadPage by rememberSaveable { mutableStateOf(KeypadPage.MAIN) }
 
-    // 用"布尔开关 + 独立保存的种类"而不是 `PickerKind?`：
-    // 退出动画播放期间若用可空状态，内容会先变成 null，面板会闪一下空白。
+    // 用"布尔开关 + 独立保存的枚举"而不是可空状态：
+    // 退出动画播放期间若用可空值，内容会先变成 null，面板会闪一下空白。
     var pickerOpen by remember { mutableStateOf(false) }
-    var pickerKind by remember { mutableStateOf(PickerKind.CATEGORY) }
-    fun openPicker(kind: PickerKind) {
-        pickerKind = kind
+    var pane by remember { mutableStateOf(PickerPane.UNITS) }
+    var end by remember { mutableStateOf(UnitEnd.FROM) }
+
+    fun openPicker(target: UnitEnd) {
+        end = target
+        pane = PickerPane.UNITS
         pickerOpen = true
     }
 
@@ -102,7 +110,10 @@ fun UnitsScreen(
     val pickerScroll = rememberScrollState()
     val scope = rememberCoroutineScope()
 
-    BackHandler(enabled = pickerOpen) { pickerOpen = false }
+    BackHandler(enabled = pickerOpen) {
+        // 在类别层按返回只退一层，回到单位列表——不会连整块面板一起关掉
+        if (pane == PickerPane.CATEGORY) pane = PickerPane.UNITS else pickerOpen = false
+    }
 
     // 表冠：选择器打开时滚列表；否则沿用计算器的"能滚就滚，没得滚才换页"
     RotaryHandler(AppPage.UNITS) { pixels ->
@@ -128,13 +139,16 @@ fun UnitsScreen(
     val value = converter.evaluate(settings)
     val convertedText = converter.convertedText(settings)
 
+    // 两行等高；胶囊比行高略矮，上下各留一点呼吸空间
+    val rowHeight = layout.display.height / 2f
+    val chipHeight = rowHeight - WatchLayout.DISPLAY_CHIP_INSET
+
     Box(modifier.fillMaxSize()) {
         Column(
             modifier = Modifier.fillMaxSize(),
             horizontalAlignment = Alignment.CenterHorizontally,
         ) {
             Spacer(Modifier.height(scaled(layout.header.top)))
-
             WatchHeader(
                 zone = layout.header,
                 leading = {
@@ -151,71 +165,38 @@ fun UnitsScreen(
                 center = { ClockText(time) },
             )
 
-            // ------------------------------------------------------ 单位选择行
-            val pickerZone = layout.extraRow
-            if (pickerZone != null) {
-                Spacer(Modifier.height(scaled(pickerZone.top - layout.header.bottom)))
-                val gap = WatchLayout.KEY_GAP
-                // 类别是上下文，起算/目标单位才是主要交互：宽度按 0.72 : 1.34 : 1.34 分，
-                // 两个单位格各拿到近两倍于类别格的宽度。层级靠尺寸先立住，颜色再补一刀。
-                val widths = WatchLayout.distribute(
-                    pickerZone.maxWidth,
-                    gap,
-                    listOf(CATEGORY_WEIGHT, UNIT_WEIGHT, UNIT_WEIGHT),
-                )
-                Row(
-                    modifier = Modifier.width(scaled(pickerZone.maxWidth)),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(scaled(gap)),
-                ) {
-                    SelectChip(
-                        label = converter.category.label,
-                        description = "单位类别，当前${converter.category.label}",
-                        widthDu = widths[0],
-                        heightDu = pickerZone.height,
-                        emphasis = ChipEmphasis.SECONDARY,
-                        hapticsEnabled = hapticsEnabled,
-                        onClick = { openPicker(PickerKind.CATEGORY) },
-                    )
-                    // 胶囊上只画国际符号（m / ft / km/h），中文名交给读屏与选择器：
-                    // 数字旁边要跟着的正是这个符号，两处保持一致才不会读错行。
-                    SelectChip(
-                        label = converter.from.symbol,
-                        description = "起算单位，${converter.from.label}",
-                        widthDu = widths[1],
-                        heightDu = pickerZone.height,
-                        emphasis = ChipEmphasis.PRIMARY,
-                        hapticsEnabled = hapticsEnabled,
-                        onClick = { openPicker(PickerKind.FROM) },
-                    )
-                    SelectChip(
-                        label = converter.to.symbol,
-                        description = "目标单位，${converter.to.label}",
-                        widthDu = widths[2],
-                        heightDu = pickerZone.height,
-                        emphasis = ChipEmphasis.PRIMARY,
-                        hapticsEnabled = hapticsEnabled,
-                        onClick = { openPicker(PickerKind.TO) },
-                    )
-                }
-                Spacer(Modifier.height(scaled(layout.display.top - pickerZone.bottom)))
-            } else {
-                Spacer(Modifier.height(scaled(layout.display.top - layout.header.bottom)))
-            }
-
             // ---------------------------------------------------------- 显示区
+            Spacer(Modifier.height(scaled(layout.display.top - layout.header.bottom)))
             CalcDisplay(
-                // 单位跟在数值后面，两行读起来才是完整的 "12.5 米 = 41.01 英尺"
-                expression = if (converter.input.isEmpty()) {
-                    ""
-                } else {
-                    "${converter.input} ${converter.from.symbol}"
-                },
-                result = convertedText?.let { "$it ${converter.to.symbol}" }.orEmpty(),
+                // 单位已经画在胶囊上了，这里只留纯数字
+                expression = converter.input,
+                result = convertedText.orEmpty(),
                 errorMessage = (value as? InputValue.Bad)?.let { errorText(it.error) },
                 zone = layout.display,
                 expressionScroll = expressionScroll,
                 resultScroll = resultScroll,
+                resultPrefix = "",
+                expressionRowDu = rowHeight,
+                // 胶囊占了左侧，表达式字号再放大就会一路挤到胶囊上
+                expressionMaxFontDu = 24f,
+                expressionLeading = {
+                    UnitChip(
+                        unit = converter.from,
+                        description = "起算单位，${converter.from.label}",
+                        heightDu = chipHeight,
+                        hapticsEnabled = hapticsEnabled,
+                        onClick = { openPicker(UnitEnd.FROM) },
+                    )
+                },
+                resultLeading = {
+                    UnitChip(
+                        unit = converter.to,
+                        description = "目标单位，${converter.to.label}",
+                        heightDu = chipHeight,
+                        hapticsEnabled = hapticsEnabled,
+                        onClick = { openPicker(UnitEnd.TO) },
+                    )
+                },
             )
 
             // ------------------------------------------------------------ 键盘
@@ -259,72 +240,113 @@ fun UnitsScreen(
             enter = fadeIn(Motion.enter(Motion.DURATION_SHORT3)),
             exit = fadeOut(Motion.exit(Motion.DURATION_SHORT2)),
         ) {
-            when (pickerKind) {
-                PickerKind.CATEGORY -> PickerOverlay(
+            if (pane == PickerPane.CATEGORY) {
+                PickerOverlay(
                     title = "单位类别",
                     options = UnitCategory.entries,
                     selected = converter.category,
                     label = { it.label },
                     onSelect = {
                         converter.selectCategory(it)
-                        pickerOpen = false
+                        // 选完类别就回到单位列表：此刻的意图是"换类别再挑单位"，
+                        // 直接关掉面板等于让他重新点一次胶囊。
+                        pane = PickerPane.UNITS
                     },
                     onDismiss = { pickerOpen = false },
                     scrollState = pickerScroll,
                 )
-
-                PickerKind.FROM -> UnitPicker(
-                    title = "起算单位",
+            } else {
+                UnitPicker(
+                    title = if (end == UnitEnd.FROM) "起算单位" else "目标单位",
                     options = converter.units,
-                    selected = converter.from,
+                    selected = if (end == UnitEnd.FROM) converter.from else converter.to,
                     onSelect = {
-                        converter.selectFrom(converter.units.indexOf(it))
+                        val index = converter.units.indexOf(it)
+                        if (end == UnitEnd.FROM) {
+                            converter.selectFrom(index)
+                        } else {
+                            converter.selectTo(index)
+                        }
                         pickerOpen = false
                     },
                     onDismiss = { pickerOpen = false },
                     scrollState = pickerScroll,
-                )
-
-                PickerKind.TO -> UnitPicker(
-                    title = "目标单位",
-                    options = converter.units,
-                    selected = converter.to,
-                    onSelect = {
-                        converter.selectTo(converter.units.indexOf(it))
-                        pickerOpen = false
+                    categoryAction = {
+                        CategoryDrilldownChip(
+                            label = converter.category.label,
+                            onClick = {
+                                // 两级共用同一个滚动状态，回列表时先归零，
+                                // 否则会停在类别列表滚到的位置（单位列表已被裁到看不见）
+                                scope.launch { pickerScroll.scrollTo(0) }
+                                pane = PickerPane.CATEGORY
+                            },
+                        )
                     },
-                    onDismiss = { pickerOpen = false },
-                    scrollState = pickerScroll,
                 )
             }
         }
     }
 }
 
+/**
+ * 显示行左侧的单位胶囊。
+ *
+ * 宽度固定：两行胶囊等宽，右边的数字才会左右对齐，一眼就能上下对读。
+ */
 @Composable
-private fun UnitPicker(
+private fun UnitChip(
+    unit: UnitDef,
+    description: String,
+    heightDu: Float,
+    hapticsEnabled: Boolean,
+    onClick: () -> Unit,
+) {
+    SelectChip(
+        label = unit.symbol,
+        description = description,
+        widthDu = WatchLayout.DISPLAY_CHIP_WIDTH,
+        heightDu = heightDu,
+        emphasis = ChipEmphasis.PRIMARY,
+        hapticsEnabled = hapticsEnabled,
+        onClick = onClick,
+        showChevron = true,
+    )
+}
+
+/** 选择器标题右侧的「当前类别 ⌄」，点一下钻进类别列表 */
+@Composable
+internal fun CategoryDrilldownChip(label: String, onClick: () -> Unit) {
+    SelectChip(
+        label = label,
+        description = "切换单位类别，当前$label",
+        widthDu = 78f,
+        heightDu = 30f,
+        emphasis = ChipEmphasis.SECONDARY,
+        hapticsEnabled = true,
+        onClick = onClick,
+        showChevron = true,
+    )
+}
+
+@Composable
+internal fun UnitPicker(
     title: String,
     options: List<UnitDef>,
     selected: UnitDef,
     onSelect: (UnitDef) -> Unit,
     onDismiss: () -> Unit,
     scrollState: ScrollState,
+    categoryAction: @Composable () -> Unit,
 ) = PickerOverlay(
     title = title,
     options = options,
     selected = selected,
-    // 同时给出中文名与符号：符号是结果行里真正出现的那个，两者必须对得上
+    // 同时给出中文名与符号：符号是胶囊上真正显示的那个，两者必须对得上
     label = { "${it.label}  (${it.symbol})" },
     onSelect = onSelect,
     onDismiss = onDismiss,
     scrollState = scrollState,
+    titleAction = categoryAction,
 )
 
-/**
- * 选择行里三个格子的宽度权重。
- *
- * 数值本身不重要，比例才重要：单位格 ≈ 类别格的 1.86 倍。
- * 类别一行只有两三个汉字，给太宽反而会让单位符号显得次要。
- */
-private const val CATEGORY_WEIGHT = 0.72f
-private const val UNIT_WEIGHT = 1.34f
+
