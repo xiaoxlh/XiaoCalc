@@ -302,6 +302,19 @@ class CalculatorState(
         historyStore.saveEntries(emptyList())
     }
 
+    /**
+     * 删除单条历史。
+     *
+     * 按条目本身匹配而不是按下标：列表是可滚动的，而删除由手势触发，
+     * 用下标会在列表内容变化的瞬间删错一条——删错历史比删不掉更糟。
+     * 时间戳让每一条都是唯一的，因此匹配不会含糊。
+     */
+    fun removeHistory(entry: HistoryEntry) {
+        if (history.remove(entry)) {
+            historyStore.saveEntries(history.toList())
+        }
+    }
+
     /** 从历史回填表达式，便于继续编辑 */
     fun reuse(entry: HistoryEntry) {
         expression = NumberFormatter.desuperscript(entry.expression)

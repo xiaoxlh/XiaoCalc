@@ -292,6 +292,38 @@ class CalculatorStateTest {
     }
 
     @Test
+    fun `删除单条历史只删那一条并落盘`() {
+        val s = state()
+        s.type("1+1")
+        s.onKey(CalcKey.Equals)
+        s.type("2×3")
+        s.onKey(CalcKey.Equals)
+        s.type("3+3")
+        s.onKey(CalcKey.Equals)
+        assertEquals(3, s.history.size)
+
+        val middle = s.history[1]
+        s.removeHistory(middle)
+
+        assertEquals(2, s.history.size)
+        assertEquals("3+3", s.history[0].expression)
+        assertEquals("1+1", s.history[1].expression)
+        // 必须落盘，否则重建状态后删掉的那条会"复活"
+        assertEquals(2, historyStore.loadEntries().size)
+        assertTrue(historyStore.loadEntries().none { it == middle })
+    }
+
+    @Test
+    fun `删除不存在的历史不会改动任何东西`() {
+        val s = state()
+        s.type("1+1")
+        s.onKey(CalcKey.Equals)
+        s.removeHistory(HistoryEntry("不存在的", "0", 999L))
+        assertEquals(1, s.history.size)
+        assertEquals(1, historyStore.loadEntries().size)
+    }
+
+    @Test
     fun `清空历史会落盘`() {
         val s = state()
         s.type("1+1")

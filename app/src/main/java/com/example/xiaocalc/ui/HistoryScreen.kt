@@ -43,6 +43,10 @@ import com.example.xiaocalc.ui.components.WatchIconButton
 import com.example.xiaocalc.ui.components.WatchIcons
 import com.example.xiaocalc.ui.components.WatchScrollIndicator
 import com.example.xiaocalc.ui.components.rememberKeyHaptics
+import androidx.compose.runtime.LaunchedEffect
+import androidx.wear.compose.foundation.SwipeToDismissValue
+import androidx.wear.compose.material3.SwipeToDismissBox
+import androidx.wear.compose.foundation.SwipeToDismissBoxState
 
 /**
  * 历史记录。
@@ -122,14 +126,46 @@ fun HistoryScreen(
                     HintText("暂无历史记录\n完成一次计算后会显示在这里", Modifier.fillMaxWidth())
                 } else {
                     entries.forEach { entry ->
-                        HistoryCard(
-                            entry = entry,
-                            onClick = {
-                                haptics(false)
-                                controller.reuse(entry)
-                                onNavigate(AppPage.CALCULATOR)
-                            },
-                        )
+                        // 每条自持一个滑动状态：共用一个会让"划开第二条"把第一条也带开
+                        val dismissState = remember(entry) { SwipeToDismissBoxState() }
+                        LaunchedEffect(dismissState.currentValue) {
+                            if (dismissState.currentValue == SwipeToDismissValue.Dismissed) {
+                                haptics(true)
+                                controller.removeHistory(entry)
+                            }
+                        }
+                        SwipeToDismissBox(
+                            state = dismissState,
+                            modifier = Modifier.fillMaxWidth(),
+                        ) { isBackground ->
+                            if (isBackground) {
+                                // 背景用 matchParentSize：卡片自身撑出高度，背景跟随，
+                                // 这样不用把卡片高度写死在两处
+                                Box(
+                                    modifier = Modifier
+                                        .matchParentSize()
+                                        .clip(RoundedCornerShape(scaled(18f)))
+                                        .background(MaterialTheme.colorScheme.errorContainer),
+                                    contentAlignment = Alignment.Center,
+                                ) {
+                                    Text(
+                                        text = "删除",
+                                        color = MaterialTheme.colorScheme.onErrorContainer,
+                                        fontSize = scaledSp(20f),
+                                        fontWeight = FontWeight.Bold,
+                                    )
+                                }
+                            } else {
+                                HistoryCard(
+                                    entry = entry,
+                                    onClick = {
+                                        haptics(false)
+                                        controller.reuse(entry)
+                                        onNavigate(AppPage.CALCULATOR)
+                                    },
+                                )
+                            }
+                        }
                         Spacer(Modifier.height(scaled(8f)))
                     }
                 }
