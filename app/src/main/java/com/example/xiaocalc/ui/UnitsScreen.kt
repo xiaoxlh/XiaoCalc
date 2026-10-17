@@ -6,6 +6,7 @@ import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.foundation.ScrollState
 import androidx.compose.foundation.gestures.scrollBy
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -14,7 +15,6 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -25,11 +25,9 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.text.font.FontWeight
 import com.example.xiaocalc.adaptive.LocalWatchMetrics
 import com.example.xiaocalc.adaptive.WatchLayout
 import com.example.xiaocalc.adaptive.scaled
-import com.example.xiaocalc.adaptive.scaledSp
 import com.example.xiaocalc.calc.CalcKey
 import com.example.xiaocalc.calc.CalcSettings
 import com.example.xiaocalc.calc.InputValue
@@ -40,12 +38,14 @@ import com.example.xiaocalc.calc.UnitDef
 import com.example.xiaocalc.design.Motion
 import com.example.xiaocalc.ui.components.ActionBar
 import com.example.xiaocalc.ui.components.CalcDisplay
-import com.example.xiaocalc.ui.components.CalcKeyButton
+import com.example.xiaocalc.ui.components.ChipEmphasis
 import com.example.xiaocalc.ui.components.ClockText
+import com.example.xiaocalc.ui.components.KEYPAD_ICON_OVERRIDES
 import com.example.xiaocalc.ui.components.Keypad
 import com.example.xiaocalc.ui.components.PickerOverlay
 import com.example.xiaocalc.ui.components.RotaryHandler
 import com.example.xiaocalc.ui.components.RotaryTarget
+import com.example.xiaocalc.ui.components.SelectChip
 import com.example.xiaocalc.ui.components.WatchHeader
 import com.example.xiaocalc.ui.components.WatchIconButton
 import com.example.xiaocalc.ui.components.WatchIcons
@@ -156,31 +156,44 @@ fun UnitsScreen(
             if (pickerZone != null) {
                 Spacer(Modifier.height(scaled(pickerZone.top - layout.header.bottom)))
                 val gap = WatchLayout.KEY_GAP
-                val itemWidth = (pickerZone.maxWidth - 2 * gap) / 3f
+                // 类别是上下文，起算/目标单位才是主要交互：宽度按 0.72 : 1.34 : 1.34 分，
+                // 两个单位格各拿到近两倍于类别格的宽度。层级靠尺寸先立住，颜色再补一刀。
+                val widths = WatchLayout.distribute(
+                    pickerZone.maxWidth,
+                    gap,
+                    listOf(CATEGORY_WEIGHT, UNIT_WEIGHT, UNIT_WEIGHT),
+                )
                 Row(
                     modifier = Modifier.width(scaled(pickerZone.maxWidth)),
                     verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(scaled(gap)),
                 ) {
-                    PickerChip(
-                        text = converter.category.label,
-                        widthDu = itemWidth,
+                    SelectChip(
+                        label = converter.category.label,
+                        description = "单位类别，当前${converter.category.label}",
+                        widthDu = widths[0],
                         heightDu = pickerZone.height,
+                        emphasis = ChipEmphasis.SECONDARY,
                         hapticsEnabled = hapticsEnabled,
                         onClick = { openPicker(PickerKind.CATEGORY) },
                     )
-                    Spacer(Modifier.width(scaled(gap)))
-                    PickerChip(
-                        text = converter.from.label,
-                        widthDu = itemWidth,
+                    // 胶囊上只画国际符号（m / ft / km/h），中文名交给读屏与选择器：
+                    // 数字旁边要跟着的正是这个符号，两处保持一致才不会读错行。
+                    SelectChip(
+                        label = converter.from.symbol,
+                        description = "起算单位，${converter.from.label}",
+                        widthDu = widths[1],
                         heightDu = pickerZone.height,
+                        emphasis = ChipEmphasis.PRIMARY,
                         hapticsEnabled = hapticsEnabled,
                         onClick = { openPicker(PickerKind.FROM) },
                     )
-                    Spacer(Modifier.width(scaled(gap)))
-                    PickerChip(
-                        text = converter.to.label,
-                        widthDu = itemWidth,
+                    SelectChip(
+                        label = converter.to.symbol,
+                        description = "目标单位，${converter.to.label}",
+                        widthDu = widths[2],
                         heightDu = pickerZone.height,
+                        emphasis = ChipEmphasis.PRIMARY,
                         hapticsEnabled = hapticsEnabled,
                         onClick = { openPicker(PickerKind.TO) },
                     )
@@ -224,7 +237,7 @@ fun UnitsScreen(
                     }
                 },
                 angleUnit = settings.angleUnit,
-                glyphOverrides = KEYPAD_GLYPH_OVERRIDES,
+                iconOverrides = KEYPAD_ICON_OVERRIDES,
             )
 
             // ---------------------------------------------------------- 操作行
@@ -308,38 +321,10 @@ private fun UnitPicker(
 )
 
 /**
- * 选择行里的胶囊按钮。
+ * 选择行里三个格子的宽度权重。
  *
- * 复用 [CalcKeyButton] 以继承按压回弹、触感与无障碍角色；
- * 形状用 50% 圆角（胶囊）——与普通按键的圆角矩形区分开，
- * 表示"点它会打开一个选择器"而不是"按下即生效"。
+ * 数值本身不重要，比例才重要：单位格 ≈ 类别格的 1.86 倍。
+ * 类别一行只有两三个汉字，给太宽反而会让单位符号显得次要。
  */
-@Composable
-private fun PickerChip(
-    text: String,
-    widthDu: Float,
-    heightDu: Float,
-    hapticsEnabled: Boolean,
-    onClick: () -> Unit,
-) {
-    val haptics = rememberKeyHaptics(hapticsEnabled)
-    CalcKeyButton(
-        key = CalcKey.Clear, // 仅为无障碍标签占位，真实语义由 onClick 表达
-        widthDu = widthDu,
-        heightDu = heightDu,
-        hapticsEnabled = hapticsEnabled,
-        onKey = {
-            haptics(false)
-            onClick()
-        },
-        glyphOverride = text,
-        shape = RoundedCornerShape(percent = 50),
-        fontSizeOverride = scaledSp(19f),
-        fontWeightOverride = FontWeight.Bold,
-        containerOverride = MaterialTheme.colorScheme.surfaceContainerHigh,
-        contentOverride = MaterialTheme.colorScheme.onSurface,
-    )
-}
-
-/** `=` 在本页改标为"换"：求值在此无意义，交换单位才是用户要的 */
-private val KEYPAD_GLYPH_OVERRIDES: Map<CalcKey, String> = mapOf(CalcKey.Equals to "换")
+private const val CATEGORY_WEIGHT = 0.72f
+private const val UNIT_WEIGHT = 1.34f

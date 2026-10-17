@@ -35,6 +35,20 @@ object WatchVectorIcons {
         vector(COPY_PATH)
     }
 
+    /**
+     * 交换（Material Symbols 的 swap_horiz）。
+     *
+     * 替掉原来的"换"字：一个汉字要占满整格才看得清，而箭头图形
+     * 在所有语言里都读作"两边对调"，且不必担心字体子集缺字。
+     */
+    private const val SWAP_PATH =
+        "M6.99 11L3 15l3.99 4v-3H14v-2H6.99v-3z" +
+            "M21 9l-3.99-4v3H10v2h7.01v3L21 9z"
+
+    val Swap: ImageVector by lazy {
+        vector(SWAP_PATH)
+    }
+
     private fun vector(path: String): ImageVector =
         ImageVector.Builder(
             name = "WatchIcon",

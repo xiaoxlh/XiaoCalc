@@ -224,8 +224,87 @@ class DiscTest {
         assertTrue("满宽内容区顶角应当落在表盘外", !topCornerInside)
     }
 
-    private fun zonesOf(layout: WatchLayout): List<Pair<String, Zone>> = listOf(
-        "header" to layout.header,
+    // ------------------------------------------------------------ 选择行权重
+
+    @Test
+    fun `权重分配的总和加间距等于可用宽度`() {
+        val gap = WatchLayout.KEY_GAP
+        for (weights in listOf(
+            listOf(0.72f, 1.34f, 1.34f),
+            listOf(1.30f, 1.30f, 1.02f),
+            listOf(1f),
+        )) {
+            val widths = WatchLayout.distribute(264f, gap, weights)
+            assertEquals(weights.size, widths.size)
+            assertEquals(264f, widths.sum() + (weights.size - 1) * gap, 1e-3f)
+        }
+    }
+
+    @Test
+    fun `权重越大分到的宽度越大`() {
+        val widths = WatchLayout.distribute(264f, 5f, listOf(0.62f, 1.02f, 1.30f))
+        assertTrue("权重 0.62 应当最窄：$widths", widths[0] < widths[1])
+        assertTrue("权重 1.30 应当最宽：$widths", widths[1] < widths[2])
+    }
+
+    @Test
+    fun `权重必须为正且放得下`() {
+        for (bad in listOf(emptyList(), listOf(1f, 0f), listOf(1f, -1f))) {
+            var threw = false
+            try {
+                WatchLayout.distribute(264f, 5f, bad)
+            } catch (_: IllegalArgumentException) {
+                threw = true
+            }
+            assertTrue("权重 $bad 应当被拒绝", threw)
+        }
+        var tooNarrow = false
+        try {
+            WatchLayout.distribute(10f, 5f, listOf(1f, 1f, 1f))
+        } catch (_: IllegalArgumentException) {
+            tooNarrow = true
+        }
+        assertTrue("宽度不足以放下三个格子时应当拒绝", tooNarrow)
+    }
+
+    /**
+     * 单位/货币页顶部那条"额外操作行"原先不在 [zonesOf] 里，等于无人看守。
+     * 它把显示区与键盘整体下移，一旦越界就会在圆屏上切角或被上方顶栏压住。
+     */
+    @Test
+    fun `额外操作行落在表盘内且不与相邻分区重叠`() {
+        for (round in listOf(true, false)) {
+            val layout = WatchLayout.units(round)
+            val extra = layout.extraRow ?: error("round=$round 缺少额外操作行")
+            assertTrue("round=$round 额外行与顶栏重叠", extra.top >= layout.header.bottom - 1e-3f)
+            assertTrue("round=$round 额外行与显示区重叠", extra.bottom <= layout.display.top + 1e-3f)
+            assertTrue("round=$round 额外行下方超出表盘", extra.bottom <= Disc.DESIGN)
+            if (round) assertCornersInsideDisc("额外行", extra)
+        }
+    }
+
+    /** 选择行里的每一格都必须仍然是一个能按得准的目标 */
+    @Test
+    fun `选择行按权重切分后每一格都够宽`() {
+        val gap = WatchLayout.KEY_GAP
+        // 单位页三格（类别 + 起算 + 目标）与货币页三格（起算 + 目标 + 日期）
+        val rows = listOf(
+            listOf(0.72f, 1.34f, 1.34f),
+            listOf(1.30f, 1.30f, 1.02f),
+        )
+        for (round in listOf(true, false)) {
+            val extra = WatchLayout.units(round).extraRow ?: error("round=$round 缺少额外操作行")
+            for (weights in rows) {
+                val widths = WatchLayout.distribute(extra.maxWidth, gap, weights)
+                assertTrue(
+                    "round=$round 权重 $weights 分出的最窄格只有 ${widths.min()}du",
+                    widths.min() >= 34f,
+                )
+            }
+        }
+    }
+
+    private fun zonesOf(layout: WatchLayout): List<Pair<String, Zone>> = listOf(        "header" to layout.header,
         "display" to layout.display,
         "keypad" to layout.keypad,
         "actionRow" to layout.actionRow,

@@ -176,6 +176,22 @@ data class WatchLayout(
         fun of(round: Boolean): WatchLayout = if (round) roundLayout() else squareLayout()
 
         /**
+         * 按权重把一行切成若干等间距的格子。
+         *
+         * 选择行里的按钮**不是等权的**："起算单位/目标单位"是主要交互，
+         * "类别"与"汇率日期"只是上下文，等分会把注意力平摊掉。
+         * 权重让主要项拿到接近 2 倍的宽度，层级靠尺寸而不仅靠颜色表达。
+         */
+        fun distribute(totalDu: Float, gapDu: Float, weights: List<Float>): List<Float> {
+            require(weights.isNotEmpty()) { "weights must not be empty" }
+            require(weights.all { it > 0f }) { "weights must be positive: $weights" }
+            val free = totalDu - (weights.size - 1) * gapDu
+            require(free > 0f) { "no room for ${weights.size} items in $totalDu" }
+            val sum = weights.sum()
+            return weights.map { free * it / sum }
+        }
+
+        /**
          * 带"额外操作行"的布局，供单位换算页与方程页共用。
          *
          * 与 [of] 的唯一区别是多出 [WatchLayout.extraRow]，并由它把显示区与键盘整体下移。

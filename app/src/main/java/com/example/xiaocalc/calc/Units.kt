@@ -97,7 +97,7 @@ object Units {
             UnitDef("平方厘米", "cm²", of("0.0001")),
             UnitDef("平方千米", "km²", of("1000000")),
             UnitDef("公顷", "ha", of("10000")),
-            UnitDef("亩", "亩", frac("2000", "3")),
+            UnitDef("亩", "mu", frac("2000", "3")),
             UnitDef("英亩", "acre", of("4046.8564224")),
         ),
 
@@ -118,8 +118,8 @@ object Units {
             UnitDef("克", "g", of("0.001")),
             UnitDef("毫克", "mg", of("0.000001")),
             UnitDef("吨", "t", of("1000")),
-            UnitDef("斤", "斤", of("0.5")),
-            UnitDef("两", "两", of("0.05")),
+            UnitDef("斤", "jin", of("0.5")),
+            UnitDef("两", "liang", of("0.05")),
             UnitDef("盎司", "oz", of("0.028349523125")),
         ),
 

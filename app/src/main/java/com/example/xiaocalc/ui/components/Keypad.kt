@@ -77,6 +77,14 @@ fun Keypad(
      */
     glyphOverrides: Map<CalcKey, String> = emptyMap(),
     /**
+     * 按键图标覆盖。优先于 [glyphOverrides]。
+     *
+     * 与字形覆盖同源，但用于"文字表达不好"的操作：单位换算页的交换键
+     * 原先写一个"换"字，既占满整格又只有中文读者能懂；换成双向箭头后
+     * 一眼就能读作"两边对调"，且不依赖字体子集是否含该字。
+     */
+    iconOverrides: Map<CalcKey, ImageVector> = emptyMap(),
+    /**
      * 覆盖键位内容。为 null 时按 [page] 取默认键盘。
      *
      * 方程页据此复用同一套几何，只换掉键位表——不必为它复制一份布局代码。
@@ -138,6 +146,7 @@ fun Keypad(
                                 hapticsEnabled = hapticsEnabled,
                                 onKey = onKey,
                                 glyphOverride = glyphOverrides[key] ?: key.dynamicGlyph(angleUnit),
+                                icon = iconOverrides[key],
                             )
                         }
                     }
@@ -163,6 +172,13 @@ fun CalcKeyButton(
     onKey: (CalcKey) -> Unit,
     modifier: Modifier = Modifier,
     glyphOverride: String? = null,
+    /**
+     * 无障碍描述。为 null 时退回 [CalcKey.label]。
+     *
+     * 单位/货币选择胶囊上只画一个符号（`m`、`ft`、`CNY`），读屏软件照着念
+     * 就是三个字母；这里补上"米""英尺"这样的完整说法。
+     */
+    description: String? = null,
     /** 用矢量图标代替文字字面（退格键必须如此：MiSans 不含 U+232B） */
     icon: ImageVector? = null,
     containerOverride: Color? = null,
@@ -204,7 +220,7 @@ fun CalcKeyButton(
                 interactionSource = interaction,
                 indication = ripple(),
                 role = Role.Button,
-                onClickLabel = key.label,
+                onClickLabel = description ?: key.label,
                 onClick = {
                     // "=" 是最关键的一次确认操作，给更强的触感
                     haptics(key.kind == KeyKind.EQUALS)
@@ -216,7 +232,7 @@ fun CalcKeyButton(
         if (icon != null) {
             Icon(
                 imageVector = icon,
-                contentDescription = key.label,
+                contentDescription = description ?: key.label,
                 tint = content,
                 modifier = Modifier.size(scaled(minOf(widthDu, heightDu) * 0.46f)),
             )
@@ -271,6 +287,15 @@ internal fun keyContentColor(key: CalcKey): Color = when (key.kind) {
 
 /** 圆角半径按短边的百分比取，宽键与窄键的观感才一致 */
 private const val KEY_CORNER_PERCENT = 32
+
+/**
+ * "单位/货币换算页的 `=` 键画成双向箭头"。
+ *
+ * 两页共用同一张表：这两个页面的结果都是实时算出来的，求值没有意义，
+ * 而有意义的是"把起算与目标对调"。放在键盘右下角也保证拇指够得到。
+ */
+internal val KEYPAD_ICON_OVERRIDES: Map<CalcKey, ImageVector> =
+    mapOf(CalcKey.Equals to WatchVectorIcons.Swap)
 
 /** 分页胶囊：50% 圆角 = 胶囊形，用形状把"导航"与"按键"区分开 */
 internal const val CHIP_CORNER_PERCENT = 50

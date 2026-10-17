@@ -60,9 +60,31 @@ class UnitsTest {
         }
     }
 
+    /**
+     * 选择胶囊上**只画符号**（中文名移到选择器与读屏描述里）。
+     *
+     * 于是符号本身必须真的"国际通用"：亩/斤/两 原先的符号就是汉字，
+     * 在胶囊上等于把中文名又写了一遍，换符号这件事也就没做。
+     * 长度上限则来自排版：超过五个字符的符号会把最窄的那一格挤出去。
+     */
     @Test
-    fun `目录覆盖全部类别`() {
-        for (category in UnitCategory.entries) {
+    fun `单位符号不含汉字且足够短`() {
+        for ((category, list) in Units.catalog) {
+            for (u in list) {
+                val hasHan = u.symbol.any {
+                    Character.UnicodeScript.of(it.code) == Character.UnicodeScript.HAN
+                }
+                assertTrue("$category/${u.label} 的符号「${u.symbol}」含汉字", !hasHan)
+                assertTrue(
+                    "$category/${u.label} 的符号「${u.symbol}」超过 5 个字符",
+                    u.symbol.length <= 5,
+                )
+            }
+        }
+    }
+
+    @Test
+    fun `目录覆盖全部类别`() {        for (category in UnitCategory.entries) {
             assertTrue("$category 未在目录中", Units.catalog.containsKey(category))
         }
         assertEquals(UnitCategory.entries.size, Units.catalog.size)
@@ -106,9 +128,9 @@ class UnitsTest {
         val c = UnitCategory.MASS
         assertEquals("1000", sig(convert("1", c, "kg", "g")))
         assertEquals("16", sig(convert("1", c, "lb", "oz")))
-        assertEquals("500", sig(convert("1", c, "斤", "g")))
+        assertEquals("500", sig(convert("1", c, "jin", "g")))
         // 1 斤 = 500 g，故 1 kg = 2 斤
-        assertEquals("2", sig(convert("1", c, "kg", "斤")))
+        assertEquals("2", sig(convert("1", c, "kg", "jin")))
         // 1 lb 的精确定义值 0.45359237 kg
         assertEquals("0.45359237", sig(convert("1", c, "lb", "kg")))
     }

@@ -48,11 +48,14 @@ import com.example.xiaocalc.data.RateSource
 import com.example.xiaocalc.design.Motion
 import com.example.xiaocalc.ui.components.CalcDisplay
 import com.example.xiaocalc.ui.components.CalcKeyButton
+import com.example.xiaocalc.ui.components.ChipEmphasis
 import com.example.xiaocalc.ui.components.ClockText
+import com.example.xiaocalc.ui.components.KEYPAD_ICON_OVERRIDES
 import com.example.xiaocalc.ui.components.Keypad
 import com.example.xiaocalc.ui.components.PickerOverlay
 import com.example.xiaocalc.ui.components.RotaryHandler
 import com.example.xiaocalc.ui.components.RotaryTarget
+import com.example.xiaocalc.ui.components.SelectChip
 import com.example.xiaocalc.ui.components.WatchHeader
 import com.example.xiaocalc.ui.components.WatchIconButton
 import com.example.xiaocalc.ui.components.WatchIcons
@@ -153,33 +156,37 @@ fun CurrencyScreen(
             if (extra != null) {
                 Spacer(Modifier.height(scaled(extra.top - layout.header.bottom)))
                 val gap = WatchLayout.KEY_GAP
-                val slot = (extra.maxWidth - 3 * gap) / 4f
+                val widths = WatchLayout.distribute(
+                    extra.maxWidth,
+                    gap,
+                    listOf(FROM_TO_WEIGHT, FROM_TO_WEIGHT, DATE_WEIGHT),
+                )
                 Row(
                     modifier = Modifier.width(scaled(extra.maxWidth)),
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.spacedBy(scaled(gap)),
                 ) {
-                    SmallChip(
+                    // 币种代码是主要交互，汇率日期只是上下文：字号差一档，宽度也收窄。
+                    // 交换动作放在键盘右下角——与单位换算页同一个位置。两个页面的
+                    // "对调"因此永远是同一个手势，不必各记一套。
+                    SelectChip(
                         label = state.from.code,
-                        widthDu = slot,
+                        description = "起算货币，${state.from.display}",
+                        widthDu = widths[0],
                         heightDu = extra.height,
+                        emphasis = ChipEmphasis.PRIMARY,
                         hapticsEnabled = hapticsEnabled,
                         onClick = {
                             picker = CurrencyPicker.FROM
                             pickerOpen = true
                         },
                     )
-                    SmallChip(
-                        label = "⇄",
-                        widthDu = slot,
-                        heightDu = extra.height,
-                        hapticsEnabled = hapticsEnabled,
-                        onClick = { state.swap() },
-                    )
-                    SmallChip(
+                    SelectChip(
                         label = state.to.code,
-                        widthDu = slot,
+                        description = "目标货币，${state.to.display}",
+                        widthDu = widths[1],
                         heightDu = extra.height,
+                        emphasis = ChipEmphasis.PRIMARY,
                         hapticsEnabled = hapticsEnabled,
                         onClick = {
                             picker = CurrencyPicker.TO
@@ -187,10 +194,12 @@ fun CurrencyScreen(
                         },
                     )
                     // 汇率日期：既说明"这份汇率是哪天的"，也暗示是否需要更新
-                    SmallChip(
+                    SelectChip(
                         label = state.cachedDate?.takeLast(5) ?: "未更新",
-                        widthDu = slot,
+                        description = "汇率日期，点击更新",
+                        widthDu = widths[2],
                         heightDu = extra.height,
+                        emphasis = ChipEmphasis.SECONDARY,
                         hapticsEnabled = hapticsEnabled,
                         onClick = { refreshTick++ },
                     )
@@ -224,9 +233,12 @@ fun CurrencyScreen(
                 page = keypadPage,
                 rows = layout.keyRows,
                 hapticsEnabled = hapticsEnabled,
-                onKey = state::onKey,
+                // `=` 在本页同样改作交换：结果实时可见，求值没有意义。
+                // 原先这一格按下去毫无反应，却又是整块键盘里最亮的那个键。
+                onKey = { if (it == CalcKey.Equals) state.swap() else state.onKey(it) },
                 angleUnit = settings.angleUnit,
                 keysOverride = if (keypadPage == KeypadPage.MAIN) MainKeypad else null,
+                iconOverrides = KEYPAD_ICON_OVERRIDES,
             )
 
             // ---------------------------------------------------------- 操作行
@@ -435,28 +447,10 @@ private fun CurrencyActionBar(
     }
 }
 
-@Composable
-private fun SmallChip(
-    label: String,
-    widthDu: Float,
-    heightDu: Float,
-    hapticsEnabled: Boolean,
-    onClick: () -> Unit,
-) {
-    val haptics = rememberKeyHaptics(hapticsEnabled)
-    CalcKeyButton(
-        key = CalcKey.PageMain,
-        widthDu = widthDu,
-        heightDu = heightDu,
-        hapticsEnabled = hapticsEnabled,
-        onKey = {
-            haptics(false)
-            onClick()
-        },
-        glyphOverride = label,
-        fontSizeOverride = scaledSp(if (label.length <= 3) 17f else 13f),
-        fontWeightOverride = FontWeight.Bold,
-        containerOverride = MaterialTheme.colorScheme.surfaceContainerHigh,
-        contentOverride = MaterialTheme.colorScheme.onSurface,
-    )
-}
+/**
+ * 选择行三个格子的宽度权重。
+ *
+ * 币种代码是主要交互，占 1.27 倍于"日期"的宽度；字号也差一档。
+ */
+private const val FROM_TO_WEIGHT = 1.30f
+private const val DATE_WEIGHT = 1.02f
