@@ -75,12 +75,20 @@ fun CalculatorScreen(
     time: String,
     onNavigate: (AppPage) -> Unit,
     modifier: Modifier = Modifier,
+    /**
+     * 启动时是否已经展开工具格。
+     *
+     * 生产代码总是走默认值 false；给截图测试留这个入口，是为了能拍到
+     * "工具格顶替键盘"时的整页效果——只拍工具格本身无法证明它与显示区、
+     * 操作行拼在一起是否还落在表盘内。
+     */
+    initialToolsOpen: Boolean = false,
 ) {
     val layout = LocalWatchMetrics.current.layout
     val hapticsEnabled = controller.settings.haptics
     val haptics = rememberKeyHaptics(hapticsEnabled)
     var menuOpen by remember { mutableStateOf(false) }
-    var toolsOpen by remember { mutableStateOf(false) }
+    var toolsOpen by remember { mutableStateOf(initialToolsOpen) }
 
     // 显示区的横向滚动由页面持有：表冠要能驱动它们（"能滚就滚，没得滚才换页"）
     val expressionScroll = rememberScrollState()
@@ -148,30 +156,44 @@ fun CalculatorScreen(
 
             Spacer(Modifier.height(scaled(layout.keypad.top - layout.display.bottom)))
 
-            Keypad(
-                page = controller.page,
-                rows = layout.keyRows,
-                hapticsEnabled = hapticsEnabled,
-                onKey = controller::onKey,
-                // 让 deg / rad 键的标签反映真实状态——它没有别的反馈方式
-                angleUnit = controller.settings.angleUnit,
-                // 滑动只是换页快捷方式；显式入口是底部操作行的 123 / fx
-                modifier = Modifier.pointerInput(Unit) {
-                    val threshold = 48f * density
-                    var accumulated = 0f
-                    detectHorizontalDragGestures(
-                        onDragStart = { accumulated = 0f },
-                        onDragEnd = {
-                            if (abs(accumulated) > threshold) {
-                                controller.onKey(
-                                    if (accumulated < 0) CalcKey.PageFunctions else CalcKey.PageMain,
-                                )
-                            }
-                        },
-                        onHorizontalDrag = { _, dragAmount -> accumulated += dragAmount },
-                    )
-                },
-            )
+            if (toolsOpen) {
+                // 工具格直接顶替键盘：显示区留在原位，"接着这笔计算做点什么"的上下文不断
+                ToolsGrid(
+                    zone = layout.keypad,
+                    onEquation = { toolsOpen = false; onNavigate(AppPage.EQUATION) },
+                    onGraph = { toolsOpen = false; onNavigate(AppPage.GRAPH) },
+                    onUnits = { toolsOpen = false; onNavigate(AppPage.UNITS) },
+                    onCurrency = { toolsOpen = false; onNavigate(AppPage.CURRENCY) },
+                    // 「启动时就已经展开」意味着没有"展开"这个瞬间，不该再播入场动画。
+                    // 顺带让截图测试拍得到内容——否则渲染那一帧的 alpha 还是 0。
+                    animated = !initialToolsOpen,
+                )
+            } else {
+                Keypad(
+                    page = controller.page,
+                    rows = layout.keyRows,
+                    hapticsEnabled = hapticsEnabled,
+                    onKey = controller::onKey,
+                    // 让 deg / rad 键的标签反映真实状态——它没有别的反馈方式
+                    angleUnit = controller.settings.angleUnit,
+                    // 滑动只是换页快捷方式；显式入口是底部操作行的 123 / fx
+                    modifier = Modifier.pointerInput(Unit) {
+                        val threshold = 48f * density
+                        var accumulated = 0f
+                        detectHorizontalDragGestures(
+                            onDragStart = { accumulated = 0f },
+                            onDragEnd = {
+                                if (abs(accumulated) > threshold) {
+                                    controller.onKey(
+                                        if (accumulated < 0) CalcKey.PageFunctions else CalcKey.PageMain,
+                                    )
+                                }
+                            },
+                            onHorizontalDrag = { _, dragAmount -> accumulated += dragAmount },
+                        )
+                    },
+                )
+            }
 
             Spacer(Modifier.height(scaled(layout.actionRow.top - layout.keypad.bottom)))
 
@@ -181,14 +203,17 @@ fun CalculatorScreen(
                 hapticsEnabled = hapticsEnabled,
                 onKey = controller::onKey,
                 onSelectPage = { page ->
+                    // 想换键盘分页，说明已经离开工具格了
+                    toolsOpen = false
                     controller.onKey(
                         if (page == KeypadPage.MAIN) CalcKey.PageMain else CalcKey.PageFunctions,
                     )
                 },
                 onTools = {
                     haptics(false)
-                    toolsOpen = true
+                    toolsOpen = !toolsOpen
                 },
+                toolsOpen = toolsOpen,
             )
 
             Spacer(Modifier.weight(1f))
@@ -245,32 +270,6 @@ fun CalculatorScreen(
             )
         }
 
-        // -------------------------------------------------------------- 工具面板
-        AnimatedVisibility(
-            visible = toolsOpen,
-            enter = fadeIn(Motion.enter(Motion.DURATION_SHORT3)),
-            exit = fadeOut(Motion.exit(Motion.DURATION_SHORT2)),
-        ) {
-            ToolsPanel(
-                onDismiss = { toolsOpen = false },
-                onEquation = {
-                    toolsOpen = false
-                    onNavigate(AppPage.EQUATION)
-                },
-                onGraph = {
-                    toolsOpen = false
-                    onNavigate(AppPage.GRAPH)
-                },
-                onUnits = {
-                    toolsOpen = false
-                    onNavigate(AppPage.UNITS)
-                },
-                onCurrency = {
-                    toolsOpen = false
-                    onNavigate(AppPage.CURRENCY)
-                },
-            )
-        }
     }
 }
 

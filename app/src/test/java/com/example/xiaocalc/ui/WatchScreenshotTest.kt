@@ -495,13 +495,11 @@ class WatchScreenshotTest {
     @Test
     fun tools_panel() {
         snapshot("tools_panel") {
-            ToolsPanel(
-                onDismiss = {},
-                onEquation = {},
-                onGraph = {},
-                onUnits = {},
-                onCurrency = {},
-                animated = false,
+            CalculatorScreen(
+                controller = state(),
+                time = "10:24",
+                onNavigate = {},
+                initialToolsOpen = true,
             )
         }
     }

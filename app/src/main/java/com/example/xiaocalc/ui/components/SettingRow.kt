@@ -184,6 +184,8 @@ fun SliderRow(
     valueRange: ClosedFloatingPointRange<Float>,
     onValueChange: (Float) -> Unit,
     modifier: Modifier = Modifier,
+    /** 滑杆下方的说明。手表上没有数值气泡，把"意味着什么"补一行最省事 */
+    description: String = "",
 ) {
     Column(modifier.fillMaxWidth()) {
         Row(
@@ -199,9 +201,10 @@ fun SliderRow(
                 fontWeight = FontWeight.Bold,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
-                modifier = Modifier.weight(1f, fill = false),
+                // 只给标题一档 weight：再叠一个 Spacer(weight) 会把剩余空间对半分，
+                // "小数位数"这种四个字的标题会被截成"小数…"（真机上实测到过）
+                modifier = Modifier.weight(1f),
             )
-            Spacer(Modifier.weight(1f))
             Text(
                 text = valueLabel,
                 color = MaterialTheme.colorScheme.primary,
@@ -216,5 +219,16 @@ fun SliderRow(
             steps = steps,
             valueRange = valueRange,
         )
+        if (description.isNotEmpty()) {
+            Text(
+                text = description,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                fontSize = scaledSp(15f),
+                fontWeight = FontWeight.Normal,
+                maxLines = 2,
+                overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.padding(horizontal = scaled(18f)),
+            )
+        }
     }
 }

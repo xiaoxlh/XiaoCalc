@@ -35,6 +35,7 @@ import com.example.xiaocalc.adaptive.LocalWatchMetrics
 import com.example.xiaocalc.adaptive.scaled
 import com.example.xiaocalc.adaptive.scaledSp
 import com.example.xiaocalc.calc.AngleUnit
+import com.example.xiaocalc.calc.CalcSettings
 import com.example.xiaocalc.calc.CalculatorState
 import com.example.xiaocalc.ui.components.ChoiceRow
 import com.example.xiaocalc.ui.components.ClockText
@@ -42,11 +43,13 @@ import com.example.xiaocalc.ui.components.PageTitle
 import com.example.xiaocalc.ui.components.RotaryScrollHandler
 import com.example.xiaocalc.ui.components.SectionLabel
 import com.example.xiaocalc.ui.components.SettingRow
+import com.example.xiaocalc.ui.components.SliderRow
 import com.example.xiaocalc.ui.components.WatchHeader
 import com.example.xiaocalc.ui.components.WatchIconButton
 import com.example.xiaocalc.ui.components.WatchIcons
 import com.example.xiaocalc.ui.components.WatchScrollIndicator
 import com.example.xiaocalc.ui.components.rememberKeyHaptics
+import kotlin.math.roundToInt
 
 /**
  * 设置页。
@@ -134,6 +137,32 @@ fun SettingsScreen(
 
                 Spacer(Modifier.height(scaled(14f)))
                 SectionLabel("显示与反馈", Modifier.fillMaxWidth())
+                Spacer(Modifier.height(scaled(6f)))
+                // 小数位数是唯一需要连续取值的设置：开关表达不了，循环点击要点十几次。
+                // 直接在本页拖一条滑杆，左边标题、右边当前取值、下面一行说明"意味着什么"。
+                SliderRow(
+                    title = "小数位数",
+                    valueLabel = if (settings.decimals >= CalcSettings.FULL) {
+                        "全精度"
+                    } else {
+                        "${settings.decimals} 位"
+                    },
+                    value = settings.decimals.toFloat(),
+                    steps = CalcSettings.FULL - 1,
+                    valueRange = 0f..CalcSettings.FULL.toFloat(),
+                    onValueChange = { raw ->
+                        val next = raw.roundToInt().coerceIn(0, CalcSettings.FULL)
+                        if (next != settings.decimals) {
+                            haptics(false)
+                            controller.updateSettings { it.copy(decimals = next) }
+                        }
+                    },
+                    description = if (settings.decimals >= CalcSettings.FULL) {
+                        "默认 · 不额外限制，按 16 位有效数字显示"
+                    } else {
+                        "最多保留 ${settings.decimals} 位小数"
+                    },
+                )
                 Spacer(Modifier.height(scaled(6f)))
                 SettingRow(
                     title = "科学计数法",

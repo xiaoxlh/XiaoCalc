@@ -42,6 +42,8 @@ fun ActionBar(
      * 四格是这条行能容纳的上限（该区间弦长约 190du），所以两个分页键只能合成一格。
      */
     onTools: (() -> Unit)? = null,
+    /** 工具格是否正占据键盘区。为 true 时工具键点亮，表示"再按一下收起" */
+    toolsOpen: Boolean = false,
 ) {
     val items = WatchLayout.ACTION_ITEMS
     val gap = scaled(WatchLayout.KEY_GAP)
@@ -111,10 +113,19 @@ fun ActionBar(
                         onTools()
                     },
                     icon = WatchVectorIcons.Apps,
-                    description = "工具",
+                    description = if (toolsOpen) "收起工具" else "工具",
                     shape = RoundedCornerShape(percent = CHIP_CORNER_PERCENT),
-                    containerOverride = MaterialTheme.colorScheme.surfaceContainerHigh,
-                    contentOverride = MaterialTheme.colorScheme.onSurface,
+                    // 展开时点亮：此时键盘被顶替，必须让"为什么键都不见了"有答案
+                    containerOverride = if (toolsOpen) {
+                        MaterialTheme.colorScheme.primary
+                    } else {
+                        MaterialTheme.colorScheme.surfaceContainerHigh
+                    },
+                    contentOverride = if (toolsOpen) {
+                        MaterialTheme.colorScheme.onPrimary
+                    } else {
+                        MaterialTheme.colorScheme.onSurface
+                    },
                 )
             }
         }
