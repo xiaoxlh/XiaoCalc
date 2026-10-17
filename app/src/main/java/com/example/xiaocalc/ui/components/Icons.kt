@@ -85,6 +85,18 @@ object WatchVectorIcons {
         vector(APPS_PATH)
     }
 
+    /**
+     * 右箭头（Material Symbols 的 arrow_forward）。
+     *
+     * 方程页的"求解"用它而不是写"求解"两个字：两个字要塞进一个方形键里
+     * 就得缩到很难看清，而箭头在手表尺寸下一眼就认得出是"执行、往下走"。
+     */
+    private const val ARROW_FORWARD_PATH = "M12 4l-1.41 1.41L16.17 11H4v2h12.17l-5.58 5.59L12 20l8-8z"
+
+    val ArrowForward: ImageVector by lazy {
+        vector(ARROW_FORWARD_PATH)
+    }
+
     private fun vector(path: String): ImageVector =
         ImageVector.Builder(
             name = "WatchIcon",

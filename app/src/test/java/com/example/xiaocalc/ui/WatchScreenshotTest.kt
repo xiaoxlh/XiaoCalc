@@ -344,8 +344,13 @@ class WatchScreenshotTest {
 
     private fun equationState(text: String, mode: EquationMode = EquationMode.SINGLE): EquationState {
         val state = EquationState()
-        if (mode != EquationMode.SINGLE) state.toggleMode()
-        state.insert(text)
+        state.selectMode(mode)
+        if (mode == EquationMode.SYSTEM) {
+            // 二元模式是两个独立输入框，测试里按分号拆开填
+            text.split(';').forEachIndexed { index, part -> state.setText(index, part) }
+        } else {
+            state.setText(0, text)
+        }
         return state
     }
 
