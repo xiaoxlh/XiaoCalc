@@ -60,26 +60,13 @@ import java.util.Date
 import java.util.Locale
 import kotlinx.coroutines.delay
 
-/** 表冠/旋转输入诊断日志的 tag */
 private const val ROTARY_TAG = "XiaoCalcRotary"
 
 class MainActivity : ComponentActivity() {
-
-    /** 表冠事件中枢：Activity 层接住旋转事件后转发给当前页面 */
     private val rotaryHub = RotaryHub()
 
-    /**
-     * 表冠 / 旋转表圈。
-     *
-     * 在 **Activity 层**接住而不是用 Compose 的 `onRotaryScrollEvent`：
-     * 后者要求节点先获得焦点，在本机（小米手表 OS）实测收不到任何事件；
-     * 而 `dispatchGenericMotionEvent` 收到的原始事件是齐全的。
-     *
-     * 实测形态：`source=0x400000 (ROTARY_ENCODER) action=8 (SCROLL) AXIS_SCROLL≈0.0131/档`。
-     */
     override fun dispatchGenericMotionEvent(ev: MotionEvent): Boolean {
         if (ev.action == MotionEvent.ACTION_SCROLL && ev.isScrollSource()) {
-            // AXIS_SCROLL 是旋转编码器/滚轮的规范轴；部分设备只给 AXIS_VSCROLL
             val delta = ev.getAxisValue(MotionEvent.AXIS_SCROLL)
                 .takeIf { it != 0f }
                 ?: ev.getAxisValue(MotionEvent.AXIS_VSCROLL)
@@ -91,7 +78,6 @@ class MainActivity : ComponentActivity() {
         return super.dispatchGenericMotionEvent(ev)
     }
 
-    /** 旋转表冠、鼠标滚轮、轨迹球都当作"滚动输入" */
     private fun MotionEvent.isScrollSource(): Boolean =
         isFromSource(InputDevice.SOURCE_ROTARY_ENCODER) ||
             isFromSource(InputDevice.SOURCE_MOUSE) ||
@@ -99,23 +85,16 @@ class MainActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-
-        // 全面屏沉浸：内容延伸到边缘，划出时才临时显示系统栏。
-        // 这里**不**加 FLAG_KEEP_SCREEN_ON——手表上长亮会显著耗电并带来烧屏风险。
         WindowCompat.setDecorFitsSystemWindows(window, false)
         WindowInsetsControllerCompat(window, window.decorView).apply {
             hide(WindowInsetsCompat.Type.systemBars())
             systemBarsBehavior = WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
         }
-
         val stores = SharedPreferencesStores(this)
-
-        // 表冠探针（DEBUG 才写文件）
         if (BuildConfig.DEBUG) {
             RotaryProbe.init(this)
             RotaryProbe.reset()
         }
-
         setContent {
             CompositionLocalProvider(LocalRotaryHub provides rotaryHub) {
                 XiaoCalcApp(
@@ -128,19 +107,15 @@ class MainActivity : ComponentActivity() {
 }
 
 @Composable
-private fun XiaoCalcApp(stores: Stores, welcomeCompleted: Boolean) {    // 计算状态 + 设置/历史仓库：跨重组保持，仓库负责落盘
+private fun XiaoCalcApp(stores: Stores, welcomeCompleted: Boolean) {
     val controller = remember(stores) { CalculatorState(stores, stores) }
 
-    // 换算页状态独立于计算器：换算是另一件事，共用会让"换算页按 C"清掉计算器里的式子
     val converter = remember { UnitConverterState() }
 
-    // 方程页同理：它与计算器共用键盘，但输入的是另一类东西（含未知数的等式）
     val equation = remember { EquationState() }
 
-    // 图像页：输入态与展示态分离，状态自己管着这两者
     val graph = remember { GraphState() }
 
-    // 货币页。数据源单独持有：网络实现与纯计算状态解耦，便于测试时替换
     val rateSource = remember { FrankfurterRateSource() }
     val currency = remember(stores) { CurrencyState(stores) }
 
@@ -148,7 +123,6 @@ private fun XiaoCalcApp(stores: Stores, welcomeCompleted: Boolean) {    // 计�
         mutableStateOf(if (welcomeCompleted) AppPage.CALCULATOR else AppPage.WELCOME)
     }
 
-    // 时钟：对齐到下一个整分再刷新，避免每秒重组整棵树
     val clock = remember { SimpleDateFormat("HH:mm", Locale.getDefault()) }
     var time by remember { mutableStateOf(clock.format(Date())) }
     LaunchedEffect(clock) {
@@ -159,25 +133,18 @@ private fun XiaoCalcApp(stores: Stores, welcomeCompleted: Boolean) {    // 计�
         }
     }
 
-    // 返回：子页面逐级退回计算器；计算器页内由页面自行处理（菜单优先关闭）
     BackHandler(enabled = page != AppPage.CALCULATOR) {
         page = AppPage.CALCULATOR
     }
 
-    // 把"当前页面"同步给表冠中枢：只有当前页面注册的处理器会响应。
-    // 用 SideEffect 而不是组合期直接写，是为了在每次成功组合后再同步，避免动画中途错位。
     val rotaryHub = LocalRotaryHub.current
     SideEffect { rotaryHub.currentPage = page }
 
-    // 主题必须包在这里而不是 setContent 里：主题色由 settings 驱动，
-    // 而 settings 属于下面这个 controller。读它才能让"设置页改了颜色 -> 立刻重绘"成立。
     XiaoCalcTheme(themeColor = controller.settings.themeColor) {
         WatchFrame {
             AnimatedContent(
                 targetState = page,
                 transitionSpec = {
-                    // 进入子页面＝前进（自右侧滑入）；回到计算器＝后退（自左侧滑入）。
-                    // 位移取**整屏宽度**：只用零头会让两张页面在过渡中途叠在一起、看起来像乱码。
                     val forward = targetState != AppPage.CALCULATOR
                     val direction = if (forward) 1 else -1
                     (
@@ -200,7 +167,6 @@ private fun XiaoCalcApp(stores: Stores, welcomeCompleted: Boolean) {    // 计�
                             ),
                     )
                 },
-                // 裁剪滑出的旧页面，避免它在内容盒之外留下残影
                 modifier = Modifier.clipToBounds(),
                 label = "page",
             ) { target ->

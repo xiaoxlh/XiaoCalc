@@ -2,31 +2,16 @@ package com.example.xiaocalc.calc
 
 import androidx.compose.runtime.Immutable
 
-/**
- * 一条历史记录。
- *
- * 旧实现只往 `MutableList<String>` 里塞 `"表达式 = 结果"` 并只存在内存里——
- * 应用一退就全丢。这里改成结构化条目 + 持久化，并保留原表达式以便一键回填。
- */
 @Immutable
 data class HistoryEntry(
     val expression: String,
     val result: String,
     val timestamp: Long,
 ) {
-    /** 展示用单行文本 */
     val display: String get() = "$expression = $result"
 }
 
-/**
- * 历史记录的持久化编码。
- *
- * 刻意不引 JSON 库：手表包体敏感，且核心逻辑要保持纯 Kotlin 可测。
- * 记录之间用 RS(0x1E) 分隔、字段之间用 US(0x1F) 分隔，
- * 文本内的分隔符与反斜杠做转义，因此表达式里的任何可见字符都不会破坏结构。
- */
 object HistoryCodec {
-
     private const val RECORD = '\u001E'
     private const val FIELD = '\u001F'
 

@@ -81,33 +81,6 @@ import com.example.xiaocalc.ui.components.rotaryTarget
 import java.math.BigDecimal
 import kotlinx.coroutines.launch
 
-/**
- * 方程页。
- *
- * ## 为什么把键盘整个拿掉
- *
- * 方程的语法比四则运算长得多（`x^2-3x+2=0`、`2x+y=5`），还要写字母与等号。
- * 内置键盘为了凑这四个页面已经塞满了数字与运算符，字母只能挤在角落，
- * 输入一个二次方程要点七八下。改用**系统输入法**之后，用户可以直接说话、
- * 粘贴、用自己熟悉的键盘布局；而表上确实有可用输入法（`com.sogou.ime.wear`）。
- *
- * 键盘让出来的高度全部还给了内容：输入框、符号条、模式切换、求解、结果、过程
- * 五段都能从容摆下，不再像旧版那样把结果压成一行。
- *
- * ## 结构
- *
- * ```
- * [ 输入框 1 ]            ← 二元模式下自动出现第二个
- * [ 输入框 2 ]
- * [^][(][)][=][x][+][−][×][÷][√][π]   ← 系统输入法给不了的符号
- * [ 一元 ][    二元    ]   ← 选中的那一格更宽
- *                 [ → ]    ← 靠右的求解
- * 结果 / 错误原因 / 过程 ⌄
- * ```
- *
- * 求解是**按下去才算**，不是实时：求解器要拟合多项式、判别式、必要时数值迭代，
- * 每敲一个字符都算一遍既费电又会让画面抖。这也让"过程"有明确的出现时机。
- */
 @Composable
 fun EquationScreen(
     state: EquationState,
@@ -121,8 +94,6 @@ fun EquationScreen(
     val focusManager = LocalFocusManager.current
     val resultScroll = rememberScrollState()
 
-    // 进页面时如果已经有式子（例如从别的页面切回来），先把结果算出来：
-    // 让用户对着一个"已填好但没结果"的画面再点一次求解，没有道理
     var outcome by remember {
         mutableStateOf(
             if (state.solverInput.isBlank()) {
@@ -175,24 +146,18 @@ fun EquationScreen(
                 },
                 center = { ClockText(time) },
             )
-
-            // ------------------------------------------------------------ 输入
             Spacer(Modifier.height(scaled(zones.form.top - zones.header.bottom)))
             InputFields(
                 state = state,
                 zone = zones.form,
                 hapticsEnabled = hapticsEnabled,
             )
-
-            // ------------------------------------------------------------ 符号
             Spacer(Modifier.height(scaled(zones.symbols.top - zones.form.bottom)))
             SymbolStrip(
                 zone = zones.symbols,
                 hapticsEnabled = hapticsEnabled,
                 onInsert = { state.insert(it) },
             )
-
-            // ------------------------------------------------------------ 模式
             Spacer(Modifier.height(scaled(zones.mode.top - zones.symbols.bottom)))
             ModeSwitch(
                 mode = state.mode,
@@ -204,8 +169,6 @@ fun EquationScreen(
                     state.selectMode(it)
                 },
             )
-
-            // ------------------------------------------------------------ 求解
             Spacer(Modifier.height(scaled(zones.solve.top - zones.mode.bottom)))
             Box(
                 modifier = Modifier
@@ -223,8 +186,6 @@ fun EquationScreen(
                     description = "求解",
                 )
             }
-
-            // ------------------------------------------------------------ 结果
             Spacer(Modifier.height(scaled(zones.result.top - zones.solve.bottom)))
             ResultArea(
                 zone = zones.result,
@@ -233,21 +194,11 @@ fun EquationScreen(
                 onToggleSteps = { stepsOpen = !stepsOpen },
                 scrollState = resultScroll,
             )
-
             Spacer(Modifier.weight(1f))
         }
     }
 }
 
-// ---------------------------------------------------------------------- 分区
-
-/**
- * 本页自己的纵向分区。
- *
- * 不走 [WatchLayout.equation]：那套布局是"顶栏 + 额外行 + 显示区 + 键盘 + 底栏"，
- * 而这里没有键盘、也没有底栏，硬套只会留下一块永远空着的高度。
- * 每段的可用宽度仍按 `Disc.chordInBand` 取弦长，圆屏安全约束不变。
- */
 private data class EquationZones(
     val header: Zone,
     val form: Zone,
@@ -271,18 +222,8 @@ private fun equationZones(): EquationZones {
     )
 }
 
-/** 求解按钮宽度：方形，与所在行的 40du 等高 */
 private const val SOLVE_WIDTH_DU = 62f
 
-// ---------------------------------------------------------------------- 输入
-
-/**
- * 输入框。
- *
- * 用 [BasicTextField] 而不是 Material 的 `TextField`：后者自带一圈 56dp 高的
- * 标注位与内边距，在 480px 的表盘上会吃掉两行。这里只要一个能写字、
- * 能调起输入法的方框。
- */
 @Composable
 private fun InputFields(
     state: EquationState,
@@ -371,27 +312,15 @@ private fun EquationField(
                 keyboardType = KeyboardType.Text,
                 imeAction = ImeAction.Done,
             ),
-            // 输入法收起由系统处理：本页没有"完成"按钮，
-            // 点求解会自动收起，点空白处也会
             onTextLayout = { },
         )
     }
 }
 
-/** 两个输入框之间的间距 */
 private const val FIELD_GAP_DU = 8f
-
-// ---------------------------------------------------------------------- 符号
 
 private val SYMBOLS = listOf("^", "(", ")", "=", "x", "+", "−", "×", "÷", "√", "π", ".")
 
-/**
- * 符号条。
- *
- * 系统输入法不认识 `√`、`π`，而 `^` 与 `=` 通常埋在符号面板第三层。
- * 这一条把方程真正用得到的字符平铺出来，左右滑动取用——
- * 它比键盘小得多，却补上了键盘唯一无法替代的那部分。
- */
 @Composable
 private fun SymbolStrip(
     zone: Zone,
@@ -416,7 +345,7 @@ private fun SymbolStrip(
         ) {
             for (symbol in SYMBOLS) {
                 CalcKeyButton(
-                    key = CalcKey.PageMain, // 仅占位，颜色与字形均被覆盖
+                    key = CalcKey.PageMain,
                     widthDu = chipWidth,
                     heightDu = zone.height,
                     hapticsEnabled = hapticsEnabled,
@@ -436,14 +365,6 @@ private fun SymbolStrip(
     }
 }
 
-// ---------------------------------------------------------------------- 模式
-
-/**
- * 一元 / 二元 的分段控件。
- *
- * **选中的那一格更宽**：宽度是层级最直接的表达，比换颜色更早被读到。
- * 宽度用动画过渡，切换时两格互相让位，而不是"啪"地跳一下。
- */
 @Composable
 private fun ModeSwitch(
     mode: EquationMode,
@@ -460,7 +381,7 @@ private fun ModeSwitch(
         ),
         label = "modeSplit",
     )
-    // 0 → 一元占 56%；1 → 二元占 64%（比一元更宽一点，因为"二元"是两个方程）
+
     val singleWidth = free * (0.56f - 0.10f * progress)
     val systemWidth = free * (0.44f + 0.10f * progress)
 
@@ -526,8 +447,6 @@ private fun ModeSlot(
     )
 }
 
-// ---------------------------------------------------------------------- 结果
-
 @Composable
 private fun ResultArea(
     zone: Zone,
@@ -575,7 +494,6 @@ private fun ResultArea(
                 modifier = Modifier.fillMaxWidth(),
             )
         }
-
         if (outcome.steps.isNotEmpty()) {
             Spacer(Modifier.height(scaled(6f)))
             StepToggle(open = stepsOpen, onClick = onToggleSteps)
@@ -603,13 +521,6 @@ private fun ResultArea(
     }
 }
 
-/**
- * "过程"折叠开关。
- *
- * 折叠指示用**矢量箭头**而不是 `⌃` / `⌄`：MiSans 没有 U+2303 / U+2304，
- * 用字形会显示成方框——`tools/subset_font.py` 的字形校验第一次跑就把这两个字抓了出来。
- * 箭头转 180° 表达展开/收起，与字体无关。
- */
 @Composable
 private fun StepToggle(open: Boolean, onClick: () -> Unit) {
     val haptics = rememberKeyHaptics(true)
@@ -649,8 +560,6 @@ private fun StepToggle(open: Boolean, onClick: () -> Unit) {
     }
 }
 
-// ---------------------------------------------------------------------- 求解
-
 private data class EquationOutcome(
     val text: String,
     val errorText: String?,
@@ -674,10 +583,8 @@ private fun solveEquation(
                 errorText = null,
                 steps = EquationSteps.build(input, settings.angleUnit),
             )
-
             is EquationSolution.Failed -> EquationOutcome("", equationErrorText(solution.error))
         }
-
         EquationMode.SYSTEM -> when (
             val solution = LinearSystemSolver.solve(input, settings.angleUnit)
         ) {
@@ -686,7 +593,6 @@ private fun solveEquation(
                 val y = solution.yExact ?: solution.yDisplay
                 EquationOutcome("x = $x, y = $y", null)
             }
-
             SystemSolution.Infinite -> EquationOutcome("", "有无穷多组解")
             SystemSolution.NoSolution -> EquationOutcome("", "无解")
             is SystemSolution.Failed -> EquationOutcome("", equationErrorText(solution.error))
@@ -694,15 +600,6 @@ private fun solveEquation(
     }
 }
 
-/**
- * 把根拼成一行。
- *
- * 用 `x = 1, 2` 而不是带下标的 `x₁=1`：下标字符在 MiSans 里未必齐全，
- * 缺字会显示成方框——这类问题在代码评审时看不出来，只有截图能发现。
- *
- * **按数值升序排列**：求解器给出的次序是"判别式 +√D 在前"，
- * 于是整数根会显示成 `2, 1`，读起来别扭。排序是展示层的事，因此放在这里。
- */
 private fun rootsText(roots: List<EquationRoot>): String {
     val ordered = roots.sortedWith(compareBy({ rootReal(it) }, { rootImaginary(it) }))
     return "x = " + ordered.joinToString(", ") { it.exact ?: it.display }

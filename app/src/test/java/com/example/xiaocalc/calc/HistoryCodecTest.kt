@@ -4,9 +4,7 @@ import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
-/** 历史记录编码：必须对表达式里的任意可见字符做无损转义。 */
 class HistoryCodecTest {
-
     @Test
     fun `往返编解码保持内容一致`() {
         val entries = listOf(
@@ -19,7 +17,6 @@ class HistoryCodecTest {
 
     @Test
     fun `分隔符与反斜杠被转义`() {
-        // 这些字符理论上不会出现在表达式里，但编码层不能因此就假设它安全
         val nasty = "a\u001Eb\u001Fc\\d"
         val entries = listOf(HistoryEntry(nasty, nasty, 1L))
         val decoded = HistoryCodec.decode(HistoryCodec.encode(entries))
@@ -31,7 +28,6 @@ class HistoryCodecTest {
     fun `空与损坏输入不会抛异常`() {
         assertTrue(HistoryCodec.decode(null).isEmpty())
         assertTrue(HistoryCodec.decode("").isEmpty())
-        // 字段数不对 / 时间戳非数字 → 跳过该条，而不是整体崩掉
         assertTrue(HistoryCodec.decode("abc").isEmpty())
         assertTrue(HistoryCodec.decode("notanumber\u001Fx\u001Fy").isEmpty())
         assertEquals(1, HistoryCodec.decode("1\u001Fok\u001F1").size)

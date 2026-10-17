@@ -89,52 +89,24 @@ import kotlin.math.floor
 import kotlin.math.log10
 import kotlin.math.pow
 
-/** 受角度制影响的函数；只有它们出现时才需要标出单位 */
 private val TRIG_ANY = listOf("sin", "cos", "tan")
 
-/** 抽屉收起/展开的高度 */
+// all sizes below are design units on the 384du design square
 private const val SHEET_COLLAPSED_DU = 46f
 private const val SHEET_EXPANDED_DU = 280f
 
-/** 抽屉底边距表盘顶端的距离；留 40du 让它像一张浮在表盘里的卡片 */
 private const val SHEET_BOTTOM_DU = 344f
 
-/**
- * 抽屉宽度：取它纵向区间内**最窄**处的弦长。
- *
- * 抽屉展开时顶到 64du，那里表盘已经很窄；按最窄处取宽度，
- * 收起与展开就是同一个宽度，动画过程中不会左右抽动。
- */
 private val SHEET_WIDTH_DU =
     Disc.chordInBand(SHEET_BOTTOM_DU - SHEET_EXPANDED_DU, SHEET_BOTTOM_DU) * 0.98f
 
-/** 绘图区（占满表盘宽度，因此必须配合 `discClip` 才不会被画到屏幕外） */
 private const val PLOT_TOP_DU = 52f
 private const val PLOT_BOTTOM_DU = 250f
 
-/** 关键点信息行 */
 private const val POINT_TOP_DU = 252f
 
 private const val SHEET_ANIM_MS = 240
 
-/**
- * 函数图像页。
- *
- * ## 为什么没有键盘
- *
- * 圆屏 480×480，键盘一摆，画布就只剩一条横带。画图真正需要的是"看"，
- * 而不是"敲"——所以这里不摆键盘，表达式放在底部抽屉里改，
- * 用系统输入法（与方程页同一套做法），抽屉收起时整块圆屏都是画布。
- *
- * ## 为什么是抽屉而不是独立编辑页
- *
- * 画图和改公式是一件事的两面：改完立刻想看图，看完立刻想改。
- * 拆成两个页面就变成"改 → 返回 → 看 → 再进"的来回翻页；
- * 抽屉在同一个屏上完成这件事，且收起的代价只有 46du。
- *
- * 表冠在抽屉收起时于当前曲线的关键点之间循环：圆屏上列清单和画布抢空间，
- * 而"有用的点"通常只有两三个。
- */
 @Composable
 fun GraphScreen(
     state: GraphState,
@@ -150,23 +122,13 @@ fun GraphScreen(
     val colors = curveColors(MaterialTheme.colorScheme.primary)
     val drawable = state.drawable
 
-    // 颜色按**行号**分配（第 3 行恒为第 3 色），而不是按"第几条能画的"：
-    // 否则列表里留一个空行，下面的行号与曲线颜色就整体错开一位——
-    // 界面上写着 y2，画出来却是第 1 色，没人能对上。
-    // 代价是空行会占掉一个颜色，但空行本来就不画，看不出来。
     val curves = state.functions.withIndex().filter { it.value.isDrawable }
     val curveColors = curves.map { colors[it.index % colors.size] }
 
-    // 首次进入（还一条能画的都没有）时展开抽屉：否则用户面对一块空白画布，
-    // 而"编辑"这件事藏在一块什么也没写的横条里
     var sheetOpen by rememberSaveable { mutableStateOf(drawable.isEmpty()) }
 
-    // 刚点"+"新增的那一行要立刻接上输入法：加一条函数的目的就是写它，
-    // 再让用户点一下输入框只是多一步（而表盘上一共只有 144dp 宽）
     var focusRow by remember { mutableStateOf(-1) }
 
-    // 分析只在表达式或视图范围变化时重算：每条采样 401 点并求根，
-    // 不该挂在每次重组上（抽屉里的光标移动也会触发重组）
     val analyses = remember(curves.map { it.value.expression }, state.xMin, state.xMax, settings.angleUnit) {
         curves.map {
             FunctionAnalysis.analyze(it.value.expression, state.xMin, state.xMax, settings.angleUnit)
@@ -174,16 +136,10 @@ fun GraphScreen(
     }
     val active = state.activeCurve
     val points = analyses.getOrNull(active)?.points.orEmpty()
-    // 在**读取时**把下标收敛到有效范围，而不是用副作用去改写状态
+
     val selectedIndex = state.clampSelection(points.size)
 
-    // 纵轴自动贴合数据：只在"哪几行能画"发生变化时做。
-    // 每敲一个字符都重算是错的——输入 x^2-2 的过程中纵轴会连跳五次；
-    // 而回到本页时再算一次也是错的，那会把用户刚才拖出来的视野抹掉。
-    // 纵轴自动贴合数据：只在"还在自动模式"时跟着表达式走。
-    // 用户拖过缩过之后 autoFit 关掉——那时他看的就是自己挑的那一块，
-    // 再贴合等于每敲一个字都把视野抢回去；点"重置"重新交还。
-    // 输入过程中画布被输入法整个盖住，所以这里的逐字重算不会让人看到画面乱跳
+    // auto-fit only while the user has not taken over the view
     val fittedY = FunctionAnalysis.viewRange(analyses.flatMap { it.samples })
     val exprKey = curves.map { it.value.expression }
     LaunchedEffect(exprKey) {
@@ -204,7 +160,6 @@ fun GraphScreen(
     )
 
     Box(modifier.fillMaxSize()) {
-        // 画布与信息行垫在抽屉之下；抽屉展开时整体模糊退后
         Box(
             Modifier
                 .fillMaxSize()
@@ -222,8 +177,6 @@ fun GraphScreen(
                 yMax = state.yMax,
                 modifier = Modifier
                     .fillMaxSize()
-                    // 单指拖动 = 平移，双指捏合 = 以捏合点为锚缩放。
-                    // 一次手势里同时给出 pan 与 zoom，所以两者都处理、不互斥
                     .pointerInput(state) {
                         detectTransformGestures { centroid, pan, zoom, _ ->
                             if (size.width <= 0 || size.height <= 0) return@detectTransformGestures
@@ -275,7 +228,6 @@ fun GraphScreen(
                 Spacer(Modifier.weight(1f))
             }
         }
-
         GraphSheet(
             state = state,
             colors = colors,
@@ -289,9 +241,6 @@ fun GraphScreen(
                     focusRow = state.functions.lastIndex
                 }
             },
-            // 重置回到"横轴 [-10,10] + 纵轴贴合数据"。贴合必须按**默认窗口**重新采样：
-            // 直接复用当前的 fittedY 会用缩放后那个窄窗口的范围，把曲线裁出画面。
-            // 也不能只靠下面那个 LaunchedEffect——横轴本来就在 [-10,10] 时它不会重跑
             onReset = {
                 state.resetView()
                 val samples = curves.flatMap {
@@ -317,14 +266,6 @@ fun GraphScreen(
     }
 }
 
-// ---------------------------------------------------------------- 关键点信息
-
-/**
- * 当前选中点的坐标。
- *
- * 放在画布下方而不是叠在图上：圆屏边缘的弦长最短，叠字要么被裁、
- * 要么压住曲线本身。
- */
 @Composable
 private fun PointLine(
     label: Int,
@@ -337,8 +278,6 @@ private fun PointLine(
     angleUnit: AngleUnit,
     color: Color,
 ) {
-    // 表达式含三角函数时标出当前角度制：sin(x) 在角度制下周期是 360，
-    // 在 [-10,10] 里只画出一小段，不说明的话会让人以为图画错了
     val deg = if (TRIG_ANY.any { expression.contains(it) }) {
         if (angleUnit == AngleUnit.DEG) "deg " else "rad "
     } else {
@@ -383,30 +322,10 @@ private fun format(value: BigDecimal): String {
     return if (text.length > 7) value.setScale(2, java.math.RoundingMode.HALF_UP).toPlainString() else text
 }
 
-/**
- * 关键点坐标的显示精度。
- *
- * 计算内核给的是 16 位有效数字，但那是"结果"的规格；图上标一行
- * `(−9.42477796076938, 0)` 在 480px 的屏幕上一行放不下，也不是这个页面
- * 要回答的问题（"零点在哪"）。6 位小数足够读出位置，要精确值去方程页。
- */
 private val GRAPH_FORMAT = CalcSettings(decimals = 6)
 
 private fun graphNumber(value: BigDecimal): String = NumberFormatter.format(value, GRAPH_FORMAT)
 
-// -------------------------------------------------------------------- 画布
-
-/**
- * 绘图区。
- *
- * 通铺整个表盘宽度（横向）并在 [PLOT_TOP_DU]..[PLOT_BOTTOM_DU] 上作纵向映射，
- * 再由 `discClip` 裁成圆——于是网格在赤道处最宽、在顶底处收窄，
- * 这正是圆屏上画图应有的样子，也比"缩成一块矩形贴在中间"用满了屏幕。
- *
- * 纵轴范围是**状态**（`GraphState.yMin/yMax`），不是每次绘制现算的：
- * 能拖能缩的坐标系，两轴视野都必须是可写的状态，否则纵轴会被一直夹回去。
- * 自动贴合只在"哪几行能画"变化时做一次，见 `GraphScreen` 里的 `fittedY`。
- */
 @Composable
 private fun PlotCanvas(
     analyses: List<Analysis>,
@@ -430,32 +349,20 @@ private fun PlotCanvas(
         val w = size.width
         val h = size.height
         if (w <= 0f || h <= 0f) return@Canvas
-
         val xLow = xMin.toDouble()
         val yLow = yMin.toDouble()
         val xSpan = xMax.subtract(xMin).toDouble()
         val ySpan = yMax.subtract(yMin).toDouble()
         if (xSpan <= 0.0 || ySpan <= 0.0) return@Canvas
-
         val top = h * PLOT_TOP_DU / Disc.DESIGN
         val bottom = h * PLOT_BOTTOM_DU / Disc.DESIGN
         val plotH = bottom - top
         if (plotH <= 0f) return@Canvas
-
         fun px(x: Double) = ((x - xLow) / xSpan * w).toFloat()
         fun py(y: Double) = (bottom - (y - yLow) / ySpan * plotH).toFloat()
-
-        // 横竖两轴的步长各自取整——两条轴的量级通常差很远
-        //（`x^2` 在 [-10,10] 上纵轴比横轴大一个数量级），共用步长会让一个方向挤成大格。
-        // 分五段而不是四段：纵轴范围是贴着数据取的，四段时刻度正好落在上下边缘被裁掉，
-        // 中间一个数字都看不到
         val xStep = niceStep(xSpan / 5.0)
         val yStep = niceStep(ySpan / 5.0)
-
-        // 画布通铺整个表盘，但绘图必须收在纵向带状区域内：
-        // 平移到视野外的曲线不该继续画到顶栏或抽屉底下
         clipRect(top = top, bottom = bottom) {
-            // 网格
             var gx = floor(xLow / xStep) * xStep
             while (gx <= xLow + xSpan) {
                 val x = px(gx)
@@ -468,9 +375,6 @@ private fun PlotCanvas(
                 drawLine(gridColor, Offset(0f, y), Offset(w, y), strokeWidth = 1f)
                 gy += yStep
             }
-
-            // 坐标轴：拖出视野后就贴在绘图区的那一侧，而不是整根消失——
-            // 否则拖远了连"哪边是正方向"都看不出来
             val axisY = when {
                 yLow > 0.0 -> top
                 yLow + ySpan < 0.0 -> bottom
@@ -483,10 +387,8 @@ private fun PlotCanvas(
             }
             drawLine(axisColor, Offset(0f, axisY), Offset(w, axisY), strokeWidth = 2f)
             drawLine(axisColor, Offset(axisX, top), Offset(axisX, bottom), strokeWidth = 2f)
-
             analyses.forEachIndexed { index, analysis ->
                 val color = colors.getOrNull(index) ?: colors.last()
-                // 曲线：遇到无定义点或跨屏跳变时断开，否则会画出一条横贯画面的假线段
                 val path = Path()
                 var penDown = false
                 var lastY = 0f
@@ -508,22 +410,18 @@ private fun PlotCanvas(
                     penDown = true
                     lastY = vy
                 }
-                // 选中的那条画粗一点：九条同屏时，光靠颜色找不出"我正在改哪条"
                 drawPath(
                     path = path,
                     color = color,
                     style = Stroke(width = if (index == active) 4f else 2.5f),
                 )
             }
-
-            // 关键点只标当前曲线：九条曲线各标一遍，画面上会挂满圆点
             val points = analyses.getOrNull(active)?.points.orEmpty()
             val pointColor = colors.getOrNull(active)
             if (pointColor != null) {
                 points.forEachIndexed { index, point ->
                     val center = Offset(px(point.x.toDouble()), py(point.y.toDouble()))
                     if (!center.x.isFinite() || !center.y.isFinite()) return@forEachIndexed
-                    // 先垫一圈背景色，让圆点压在曲线上也看得清
                     drawCircle(ringColor, radius = 7f, center = center)
                     drawCircle(pointColor, radius = 4.5f, center = center)
                     if (index == selected) {
@@ -531,8 +429,6 @@ private fun PlotCanvas(
                     }
                 }
             }
-
-            // 刻度数字：能拖能缩的坐标系，没有数字就只是一张图
             val style = TextStyle(color = labelColor, fontSize = labelSize)
             var tx = floor(xLow / xStep) * xStep
             while (tx <= xLow + xSpan) {
@@ -562,24 +458,16 @@ private fun PlotCanvas(
     }
 }
 
-/**
- * 刻度数字。
- *
- * 小数位由**步长**决定，而不是固定几位：步长 0.2 时写 `0.2000` 是噪音，
- * 步长 0.0002 时写 `0.0` 则完全没用。数值过大就退回科学计数，
- * 否则一个刻度标签能横跨半个屏幕。
- */
 private fun tickLabel(value: Double, step: Double): String {
     if (!value.isFinite()) return ""
     val decimals = if (step >= 1.0) 0 else (-floor(log10(step))).toInt().coerceIn(0, 6)
     val rounded = BigDecimal.valueOf(value).setScale(decimals, java.math.RoundingMode.HALF_UP)
-    // 缩到 1e-7 这个量级时 6 位小数全是 0，科学计数才写得出来
+
     if (rounded.signum() == 0 && value != 0.0) return String.format(java.util.Locale.US, "%.1e", value)
     val plain = rounded.stripTrailingZeros().toPlainString()
     return if (plain.length <= 8) plain else String.format(java.util.Locale.US, "%.0e", value)
 }
 
-/** 取 1 / 2 / 5 × 10ⁿ 中最接近 raw 的步长 */
 private fun niceStep(raw: Double): Double {
     if (raw <= 0.0 || !raw.isFinite()) return 1.0
     val magnitude = 10.0.pow(floor(log10(raw)))
@@ -593,16 +481,6 @@ private fun niceStep(raw: Double): Double {
     return nice * magnitude
 }
 
-// -------------------------------------------------------------------- 抽屉
-
-/**
- * 底部抽屉。
- *
- * 高度是按值动画的，但**内容一直组合着**：靠 `wrapContentHeight(unbounded = true)`
- * 让内部按展开高度排版，再让外层的圆角容器把它裁掉。
- * 这样收起/展开只是"露出多少"，而不是换一套内容——
- * 用 if 切换会在动画一开始就把列表抽走，看着像闪了一下。
- */
 @Composable
 private fun GraphSheet(
     state: GraphState,
@@ -648,7 +526,6 @@ private fun GraphSheet(
     }
 }
 
-/** 收起时露出的那一行：颜色、当前函数、展开指示 */
 @Composable
 private fun SheetBar(
     state: GraphState,
@@ -719,7 +596,6 @@ private fun SheetBar(
     }
 }
 
-/** 抽屉展开后的工具行：添加、缩小、放大、重置 */
 @Composable
 private fun SheetTools(
     state: GraphState,
@@ -806,7 +682,6 @@ private fun SheetTool(
     }
 }
 
-/** 函数清单：每行一个输入框，左侧色点就是图例 */
 @Composable
 private fun FunctionList(
     state: GraphState,
@@ -846,9 +721,7 @@ private fun FunctionRow(
     state: GraphState,
 ) {
     val focusRequester = remember { FocusRequester() }
-    // 只在**这一行第一次被组合出来**时抢焦点：点"+"之后直接就能打字，
-    // 而不必再瞄准一次 144dp 宽的一行。用 LaunchedEffect(Unit) 而不是
-    // 监听 autoFocus 变化，是为了避免每次重组都重新弹一次输入法
+
     LaunchedEffect(Unit) {
         if (autoFocus) {
             focusRequester.requestFocus()
@@ -921,14 +794,10 @@ private fun FunctionRow(
     }
 }
 
-/** 抽屉工具行的高度 */
 private const val SHEET_TOOLS_DU = 42f
 
-/** 工具按钮直径 */
 private const val SHEET_TOOL_DU = 34f
 
-/** 清单每行高度 */
 private const val ROW_HEIGHT_DU = 44f
 
-/** 拖拽判定阈值（像素）：小于它当作点击，避免轻微抖动就把抽屉打开 */
 private const val DRAG_THRESHOLD_PX = 40f

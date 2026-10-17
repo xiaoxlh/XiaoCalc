@@ -62,27 +62,13 @@ import com.example.xiaocalc.ui.components.rotaryTarget
 import kotlin.math.abs
 import kotlinx.coroutines.launch
 
-/**
- * 计算器主页面。
- *
- * 纵向四段严格按 [com.example.xiaocalc.adaptive.WatchLayout] 落位：
- * 顶栏（时钟居中 + 溢出菜单）→ 显示区 → 键盘（逐行贴合弦长）→ 底部操作行（C / ⌫ / 分页）。
- *
- * 页面自身**不做任何形状判断**：圆屏适配全部由布局方案的弦长约束保证。
- */
 @Composable
 fun CalculatorScreen(
     controller: CalculatorState,
     time: String,
     onNavigate: (AppPage) -> Unit,
     modifier: Modifier = Modifier,
-    /**
-     * 启动时是否已经展开工具格。
-     *
-     * 生产代码总是走默认值 false；给截图测试留这个入口，是为了能拍到
-     * "工具格顶替键盘"时的整页效果——只拍工具格本身无法证明它与显示区、
-     * 操作行拼在一起是否还落在表盘内。
-     */
+
     initialToolsOpen: Boolean = false,
 ) {
     val layout = LocalWatchMetrics.current.layout
@@ -91,7 +77,6 @@ fun CalculatorScreen(
     var menuOpen by remember { mutableStateOf(false) }
     var toolsOpen by remember { mutableStateOf(initialToolsOpen) }
 
-    // 显示区的横向滚动由页面持有：表冠要能驱动它们（"能滚就滚，没得滚才换页"）
     val expressionScroll = rememberScrollState()
     val resultScroll = rememberScrollState()
     val rotaryScope = rememberCoroutineScope()
@@ -100,8 +85,6 @@ fun CalculatorScreen(
     BackHandler(enabled = menuOpen) { menuOpen = false }
     BackHandler(enabled = toolsOpen) { toolsOpen = false }
 
-    // 表冠：优先横向滚显示区；显示区没有可滚内容时才切换键盘分页。
-    // 这样"拧了有反应"是恒成立的——否则在短表达式下拧表冠会像坏了一样。
     RotaryHandler(AppPage.CALCULATOR) { pixels ->
         when (
             rotaryTarget(
@@ -128,8 +111,6 @@ fun CalculatorScreen(
             horizontalAlignment = Alignment.CenterHorizontally,
         ) {
             Spacer(Modifier.height(scaled(layout.header.top)))
-
-            // 时钟居中置顶（center 槽位相对整条栏真居中，不受右侧菜单影响）
             WatchHeader(
                 zone = layout.header,
                 center = { ClockText(time) },
@@ -145,9 +126,7 @@ fun CalculatorScreen(
                     )
                 },
             )
-
             Spacer(Modifier.height(scaled(layout.display.top - layout.header.bottom)))
-
             CalcDisplay(
                 expression = controller.displayExpression,
                 result = controller.resultText,
@@ -156,19 +135,14 @@ fun CalculatorScreen(
                 expressionScroll = expressionScroll,
                 resultScroll = resultScroll,
             )
-
             Spacer(Modifier.height(scaled(layout.keypad.top - layout.display.bottom)))
-
             if (toolsOpen) {
-                // 工具格直接顶替键盘：显示区留在原位，"接着这笔计算做点什么"的上下文不断
                 ToolsGrid(
                     zone = layout.keypad,
                     onEquation = { toolsOpen = false; onNavigate(AppPage.EQUATION) },
                     onGraph = { toolsOpen = false; onNavigate(AppPage.GRAPH) },
                     onUnits = { toolsOpen = false; onNavigate(AppPage.UNITS) },
                     onCurrency = { toolsOpen = false; onNavigate(AppPage.CURRENCY) },
-                    // 「启动时就已经展开」意味着没有"展开"这个瞬间，不该再播入场动画。
-                    // 顺带让截图测试拍得到内容——否则渲染那一帧的 alpha 还是 0。
                     animated = !initialToolsOpen,
                 )
             } else {
@@ -177,9 +151,7 @@ fun CalculatorScreen(
                     rows = layout.keyRows,
                     hapticsEnabled = hapticsEnabled,
                     onKey = controller::onKey,
-                    // 让 deg / rad 键的标签反映真实状态——它没有别的反馈方式
                     angleUnit = controller.settings.angleUnit,
-                    // 滑动只是换页快捷方式；显式入口是底部操作行的 123 / fx
                     modifier = Modifier.pointerInput(Unit) {
                         val threshold = 48f * density
                         var accumulated = 0f
@@ -197,16 +169,13 @@ fun CalculatorScreen(
                     },
                 )
             }
-
             Spacer(Modifier.height(scaled(layout.actionRow.top - layout.keypad.bottom)))
-
             ActionBar(
                 zone = layout.actionRow,
                 page = controller.page,
                 hapticsEnabled = hapticsEnabled,
                 onKey = controller::onKey,
                 onSelectPage = { page ->
-                    // 想换键盘分页，说明已经离开工具格了
                     toolsOpen = false
                     controller.onKey(
                         if (page == KeypadPage.MAIN) CalcKey.PageMain else CalcKey.PageFunctions,
@@ -218,11 +187,8 @@ fun CalculatorScreen(
                 },
                 toolsOpen = toolsOpen,
             )
-
             Spacer(Modifier.weight(1f))
         }
-
-        // ---------------------------------------------------------------- 遮罩
         AnimatedVisibility(
             visible = menuOpen,
             enter = fadeIn(Motion.enter(Motion.DURATION_SHORT3)),
@@ -239,8 +205,6 @@ fun CalculatorScreen(
                     ),
             )
         }
-
-        // ---------------------------------------------------------------- 菜单
         val origin = TransformOrigin(1f, 0f)
         AnimatedVisibility(
             visible = menuOpen,
@@ -268,21 +232,12 @@ fun CalculatorScreen(
                     onNavigate(AppPage.SETTINGS)
                 },
                 topPadding = scaled(layout.header.bottom - 8f),
-                // 菜单挂在显示区的右缘：顶栏很窄，挂它上面会让菜单被推到偏中间
                 endPadding = scaled((Disc.DESIGN - layout.display.maxWidth) / 2f),
             )
         }
-
     }
 }
 
-/**
- * 右上角的溢出菜单。
- *
- * 只剩**历史记录**与**设置**两项——这两项是"查看/配置"，不是"干活"。
- * 解方程、函数图像、单位换算、货币换算搬去了底部操作行的工具面板：
- * 那些是真正的功能入口，值得更大的目标与更清楚的字，而不是挤在一行小字里。
- */
 @Composable
 private fun CalculatorMenu(
     onHistory: () -> Unit,
@@ -323,15 +278,8 @@ private fun MenuItem(label: String, onClick: () -> Unit) {
 
 private const val MENU_WIDTH_DU = 150f
 
-/** 表冠一格（±1）对应显示区的横向滚动像素：约半个字符宽，手感跟手 */
 private const val ROTARY_STEP_PIXELS = 14f
 
-/**
- * 错误 → 文案。
- *
- * 旧实现把失败写死成结果字符串（"错误" / "NaN"），既无法区分原因，
- * 又会被后续输入当成有效操作数继续运算；这里失败是枚举，文案只属于 UI 层。
- */
 fun errorText(error: CalcError): String = when (error) {
     CalcError.EMPTY -> ""
     CalcError.TOO_LONG -> "表达式过长"

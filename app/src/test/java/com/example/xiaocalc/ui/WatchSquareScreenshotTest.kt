@@ -16,16 +16,7 @@ import com.example.xiaocalc.design.XiaoCalcTheme
 import org.junit.Rule
 import org.junit.Test
 
-/**
- * 方形 / 非圆屏分支的截图复核。
- *
- * 必须单独成一个类：Paparazzi 的屏幕外形在 `@get:Rule` 创建时就固定了，
- * 对圆形规则调用 `unsafeUpdateConfig(screenRound = NOTROUND)` 只会改变
- * `Configuration.isScreenRound`（即走方形布局），**渲染出来的遮罩仍是圆的**，
- * 结果就是"方形布局被圆形遮罩裁掉"的假象。
- */
 class WatchSquareScreenshotTest {
-
     private val squareWatch = DeviceConfig.WEAR_OS_SQUARE.copy(
         screenWidth = 480,
         screenHeight = 480,

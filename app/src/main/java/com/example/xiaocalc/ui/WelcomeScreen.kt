@@ -77,33 +77,14 @@ private const val POLICY =
 
 private const val STEP_COUNT = 2
 
-/**
- * 入场动效开关。
- *
- * 为什么要这个：入场动效的初始 `alpha` 是 0，而截图测试只渲染一帧、动画尚未推进，
- * 拍出来就是**一片空白**——内容被藏在动画后面就无法验证。
- * 关掉后 [entrance] 直接返回终态，快照能拍到真实版面。
- *
- * 顺带它也是将来"关闭动画"无障碍设置的接入点（系统 animator scale 为 0 时应走同一分支）。
- */
 val LocalEntranceAnimation = androidx.compose.runtime.staticCompositionLocalOf { true }
 
-/**
- * 首次运行引导（两步）。Material 3 重构要点：
- *
- * - **错落入场**：logo / 标题 / 副标题各自带延迟地淡入并轻微上浮，
- *   而不是整块同时出现（[entrance] 统一驱动，位移与透明度同源，为 GPU 友好）。
- * - **页点指示**：选中态由短横拉长，是 M3 对"第几页"的惯用表达。
- * - **政策阅读区边缘渐隐**：用 `BlendMode.DstIn` 做上下淡出，
- *   暗示"下面还有内容"，比硬切一条边更友好。
- * - **CTA 状态明确**：未读完时按钮为中性容器色并就地提示（不用 Toast——手表上会遮挡且一闪而过）。
- */
 @Composable
 fun WelcomeScreen(
     time: String,
     onComplete: () -> Unit,
     modifier: Modifier = Modifier,
-    /** 起始步骤；供截图测试直接渲染政策页（Paparazzi 无法交互点按） */
+
     startStep: Int = 0,
 ) {
     val layout = LocalWatchMetrics.current.layout
@@ -116,21 +97,17 @@ fun WelcomeScreen(
 
     Box(modifier.fillMaxSize()) {
         RotaryScrollHandler(AppPage.WELCOME, policyScroll)
-
         Column(
             modifier = Modifier.fillMaxSize(),
             horizontalAlignment = Alignment.CenterHorizontally,
         ) {
             Spacer(Modifier.height(scaled(layout.header.top)))
             WatchHeader(zone = layout.header, center = { ClockText(time) })
-
             Spacer(Modifier.height(scaled(layout.content.top - layout.header.bottom)))
-
             AnimatedContent(
                 targetState = step,
                 transitionSpec = {
                     val direction = if (targetState > initialState) 1 else -1
-                    // 整宽位移：只用零头会让两步内容在过渡中途叠在一起
                     (
                         slideInHorizontally(Motion.enter(Motion.DURATION_MEDIUM2)) {
                             it * direction
@@ -172,24 +149,18 @@ fun WelcomeScreen(
                     )
                 }
             }
-
             Spacer(Modifier.weight(1f))
         }
-
         if (step == 1) {
             WatchScrollIndicator(scroll = policyScroll, viewportPx = policyViewport.height.toFloat())
         }
     }
 }
 
-/**
- * 错落入场的驱动值：0 → 1。
- * 位移与透明度都从它派生，避免多个动画各跑各的。
- */
 @Composable
 private fun entrance(delayMillis: Int): Float {
     val animate = LocalEntranceAnimation.current
-    // 关闭动效时直接以终态起步，否则首帧 alpha=0 会拍到空白
+
     var entered by remember { mutableStateOf(!animate) }
     LaunchedEffect(animate) { if (animate) entered = true }
     val progress by animateFloatAsState(
@@ -204,7 +175,6 @@ private fun entrance(delayMillis: Int): Float {
     return progress
 }
 
-/** 把入场进度作用到 `alpha` + 轻微上浮 + 缩放 */
 private fun Modifier.entranceEffect(progress: Float, riseDu: Float = 18f, scaleFrom: Float = 1f): Modifier =
     graphicsLayer {
         alpha = progress
@@ -244,7 +214,6 @@ private fun IntroStep(onNext: () -> Unit, pageLabel: String) {
             )
             Spacer(Modifier.height(scaled(4f)))
             Text(
-                // 显式断行：内容区宽度受内接正方形约束，交给自动换行会把 "Wrist." 单独甩到一行
                 text = "Start Calculating\non Your Wrist.",
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 fontSize = scaledSp(17f),
@@ -280,7 +249,6 @@ private fun PolicyStep(
                 .fillMaxWidth()
                 .weight(1f)
                 .fadeEdges()
-                // onSizeChanged 在 verticalScroll 外侧才量到"可视高"
                 .onSizeChanged(onScrolled)
                 .verticalScroll(scrollState),
         ) {
@@ -302,7 +270,6 @@ private fun PolicyStep(
     }
 }
 
-/** 底部：页点 + 下一步按钮（横向排布以省纵向空间，政策区能多显示一行） */
 @Composable
 private fun StepFooter(
     pageLabel: String,
@@ -353,7 +320,6 @@ private fun StepFooter(
     }
 }
 
-/** M3 页点：选中态拉长为短横，未选中为小圆点 */
 @Composable
 private fun PageDots(current: Int) {
     val density = LocalDensity.current
@@ -389,19 +355,11 @@ private fun PageDots(current: Int) {
     }
 }
 
-/**
- * 上下边缘渐隐，暗示滚动区还有内容。
- *
- * `CompositingStrategy.Offscreen` 不是可选项：`BlendMode.DstIn` 需要把内容先合成到
- * **独立图层**再按 alpha 相乘；直接在同一画布上做，结果是未定义的
- * （实测会在文字中间render出横向亮带）。
- */
 private fun Modifier.fadeEdges(): Modifier = this
     .graphicsLayer(compositingStrategy = CompositingStrategy.Offscreen)
     .drawWithContent {
         drawContent()
         if (size.height <= 0f) return@drawWithContent
-        // 渐隐区取可视高的 14%——太短会看成一条硬边
         val fade = size.height * 0.14f
         drawRect(
             brush = Brush.verticalGradient(

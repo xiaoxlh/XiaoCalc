@@ -5,9 +5,7 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 import kotlin.math.PI
 
-/** 表达式解析器回归：既覆盖正常语义，也覆盖旧实现里明确是 bug 的几处。 */
 class ExpressionTest {
-
     private fun eval(expr: String, angleUnit: AngleUnit = AngleUnit.DEG): Double =
         ExpressionEvaluator(expr, angleUnit).evaluate().toDouble()
 
@@ -19,8 +17,6 @@ class ExpressionTest {
         }
         throw AssertionError("期望 $expr 求值失败，但成功了")
     }
-
-    // ------------------------------------------------------------------ 基本
 
     @Test
     fun `四则运算优先级`() {
@@ -34,7 +30,6 @@ class ExpressionTest {
     @Test
     fun `幂为右结合且一元负号优先级低于幂`() {
         assertEquals(512.0, eval("2^3^2"), 1e-9)
-        // -2^2 = -(2^2) = -4，而不是 (-2)^2
         assertEquals(-4.0, eval("-2^2"), 1e-9)
         assertEquals(0.125, eval("2^-3"), 1e-9)
     }
@@ -60,25 +55,19 @@ class ExpressionTest {
         assertEquals(0.5, eval("sin(30)", AngleUnit.DEG), 1e-9)
         assertEquals(1.0, eval("sin(90)", AngleUnit.DEG), 1e-9)
         assertEquals(1.0, eval("sin(π÷2)", AngleUnit.RAD), 1e-9)
-        // 省略括号同样可用：手表上少按一次
         assertEquals(0.5, eval("sin30", AngleUnit.DEG), 1e-9)
     }
-
-    // ---------------------------------------------------------------- 对数
 
     @Test
     fun `自然对数`() {
         assertEquals(0.0, eval("ln(1)"), 1e-9)
         assertEquals(1.0, eval("ln(e)"), 1e-9)
         assertEquals(kotlin.math.ln(10.0), eval("ln(10)"), 1e-9)
-        // 省略括号
         assertEquals(kotlin.math.ln(2.0), eval("ln2"), 1e-9)
     }
 
     @Test
     fun `对数与角度单位无关`() {
-        // 角度换算只对三角函数成立。若把 toRadians 提前套给所有函数，
-        // 这一条会挂——这正是把换算值留到各分支里取的原因。
         assertEquals(
             kotlin.math.ln(5.0),
             eval("ln(5)", AngleUnit.RAD),
@@ -97,22 +86,14 @@ class ExpressionTest {
         assertEquals(CalcError.NOT_FINITE, error("ln(-1)"))
     }
 
-    // ---------------------------------------------------------------- 百分号
-
     @Test
     fun `百分号按计算器惯例解释`() {
-        // 独立百分数 → 除以 100
         assertEquals(0.5, eval("50%"), 1e-9)
-        // 加减：相对左侧数值取百分比
         assertEquals(220.0, eval("200+10%"), 1e-9)
         assertEquals(180.0, eval("200-10%"), 1e-9)
-        // 乘除：直接按比例
         assertEquals(20.0, eval("200×10%"), 1e-9)
-        // 复合项不被当成"整体百分比"
         assertEquals(200.2, eval("200+2×10%"), 1e-9)
     }
-
-    // ------------------------------------------------------------------ 错误
 
     @Test
     fun `除以零被拦截而不是返回无穷`() {
@@ -140,12 +121,8 @@ class ExpressionTest {
 
     @Test
     fun `未知函数不再被静默当成隐式乘法`() {
-        // 旧实现的 readName 会贪吃字母，"deg" 被读成函数名后直接抛异常；
-        // 新版把它明确归类为未知函数，而不是产出 "错误" 字符串
         assertEquals(CalcError.UNKNOWN_FUNCTION, error("deg"))
     }
-
-    // ------------------------------------------------------- 自动补括号
 
     @Test
     fun `自动补全右括号`() {

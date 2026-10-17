@@ -3,15 +3,15 @@ import java.util.Properties
 plugins {
     id("com.android.application")
     id("org.jetbrains.kotlin.android")
-    // Kotlin 2.0 起，Compose 编译器由独立插件接管（不再用 composeOptions.kotlinCompilerExtensionVersion）
+
     id("org.jetbrains.kotlin.plugin.compose")
-    // 仅用于本地无设备截图（src/test），不参与 APK 打包
+
     id("app.cash.paparazzi")
 }
 
 android {
     namespace = "com.example.xiaocalc"
-    // material3 1.4.0（M3 Expressive）的 AAR 元数据要求 compileSdk ≥ 36
+
     compileSdk = 36
 
     val keystoreProperties = Properties()
@@ -33,7 +33,7 @@ android {
 
     defaultConfig {
         applicationId = "com.example.xiaocalc"
-        minSdk = 26 // Android 8.0，Wear OS 2/3/4 均覆盖
+        minSdk = 26
         targetSdk = 34
         versionCode = 6
         versionName = "1.2.0"
@@ -53,7 +53,6 @@ android {
 
     buildFeatures {
         compose = true
-        // AGP 8 起默认关闭，设置页需要读取 BuildConfig.VERSION_NAME
         buildConfig = true
     }
 
@@ -73,49 +72,23 @@ android {
     }
 
     lint {
-        /**
-         * `local.properties` 由 Android Studio / AGP 自动生成且**不入库**（见 .gitignore），
-         * 它在 Windows 上写的是未转义的 `sdk.dir=C:\Users\...`。
-         * 这是本机工具生成的机器相关文件，不是本项目的代码问题，故关掉该检查。
-         *
-         * 除它之外没有关闭任何其它检查——把 lint 的其余部分保持打开，
-         * 是因为 `check` 现在会跑它（见文件末尾把 verifyPaparazziDebug 挂到 check 上）。
-         */
         disable += "PropertyEscape"
         warningsAsErrors = false
         abortOnError = true
     }
 }
 
-// Kotlin 2.3 起 `android { kotlinOptions { jvmTarget } }` 已被移除，
-// 必须改用顶层 kotlin { compilerOptions } DSL。
 kotlin {
     compilerOptions {
         jvmTarget.set(org.jetbrains.kotlin.gradle.dsl.JvmTarget.JVM_11)
     }
 }
 
-/**
- * 让 `check` 真正校验截图金标。
- *
- * Paparazzi 把"渲染"和"比对"拆成了两个任务：`testDebugUnitTest` 只是把每个快照
- * 渲染出来写进 `src/test/snapshots/`，**不做任何比较**；真正的比对在
- * `verifyPaparazziDebug` 里。
- *
- * 这个坑的代价很实在：升级 Paparazzi 1.3.3 → 2.0.0-alpha05 后，新 layoutlib 让
- * 约 1.35% 的像素（字形光栅化）发生变化，而当时跑的是 `testDebugUnitTest`，
- * 于是"快照全绿"是假的——把一张金标整幅涂成全白，它照样通过。
- * 挂到 `check` 上之后，`./gradlew check` 才是一句可信的话。
- */
 tasks.named("check") {
     dependsOn("verifyPaparazziDebug")
 }
 
 dependencies {
-    // Compose 版本统一由 BOM 决定：ui / foundation / runtime 1.11.2，material3 1.4.0
-    // 选 2026.05.01 而非最新 BOM，是因为 Paparazzi 2.0.0-alpha05 官方声明的 Compose 版本
-    // 恰为 1.11.2；再往上（1.12.x）会硬性要求 AGP 9.1 + compileSdk 37。
-    // material3 1.4.0 是 Material 3 Expressive 的起始版本，该 BOM 已包含。
     val composeBom = platform("androidx.compose:compose-bom:2026.05.01")
     implementation(composeBom)
     androidTestImplementation(composeBom)
@@ -128,19 +101,9 @@ dependencies {
     implementation("androidx.compose.foundation:foundation")
     implementation("androidx.compose.animation:animation")
     implementation("androidx.compose.material3:material3")
-    // 仅用核心图标集（约 40 个），不引 material-icons-extended（体积 +30MB）
+
     implementation("androidx.compose.material:material-icons-core")
 
-    /**
-     * Google 官方手表组件库（androidx.wear.compose）。
-     *
-     * 选 1.6.2 而非 1.7.1：后者的 AAR 元数据硬性要求 `minCompileSdk=37, minAGP=9.1.0`，
-     * 而本工程按 Paparazzi 的配对要求固定在 AGP 8.13.2 / compileSdk 36。
-     * 1.6.2 的元数据为 `minCompileSdk=35, minAGP=8.6.0`，满足。
-     *
-     * 用途仅限"官方已经有规范实现"的部件：时间文本、缩放列表、页码指示器、
-     * 开关、芯片等。计算器键盘与圆盘布局继续手写——官方库没有对应组件。
-     */
     implementation("androidx.wear.compose:compose-material3:1.6.2")
     implementation("androidx.wear.compose:compose-foundation:1.6.2")
 
@@ -148,10 +111,5 @@ dependencies {
 
     testImplementation("junit:junit:4.13.2")
 
-    /**
-     * `org.json` 是 Android 框架自带的类，JVM 单元测试里没有。
-     * 汇率响应解析（[com.example.xiaocalc.calc.RateCodec]）依赖它，
-     * 因此测试期补一个同名的 JVM 实现——**只进测试类路径**，不进 APK。
-     */
     testImplementation("org.json:json:20231013")
 }

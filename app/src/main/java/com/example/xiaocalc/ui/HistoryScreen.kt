@@ -48,13 +48,6 @@ import androidx.wear.compose.foundation.SwipeToDismissValue
 import androidx.wear.compose.material3.SwipeToDismissBox
 import androidx.wear.compose.foundation.SwipeToDismissBoxState
 
-/**
- * 历史记录。
- *
- * 旧实现的历史只存在内存里，退出即清空，且条目是拼好的字符串。
- * 这里改为结构化条目 + SharedPreferences 持久化，并且**点击条目可回填表达式**——
- * 这是历史记录真正的用处。
- */
 @Composable
 fun HistoryScreen(
     controller: CalculatorState,
@@ -69,7 +62,6 @@ fun HistoryScreen(
     val entries = controller.history
 
     Box(modifier.fillMaxSize()) {
-        // 表冠 / 旋转表圈滚动列表
         RotaryScrollHandler(AppPage.HISTORY, scroll)
         Column(
             modifier = Modifier.fillMaxSize(),
@@ -104,29 +96,22 @@ fun HistoryScreen(
                     }
                 },
             )
-
             Spacer(Modifier.height(scaled(layout.content.top - layout.header.bottom)))
-
             Column(
                 modifier = Modifier
                     .width(scaled(layout.content.maxWidth))
                     .height(scaled(layout.content.height))
-                    // onSizeChanged 必须放在 verticalScroll **外侧**：
-                    // 放在内侧量到的是"内容总高"，而滚动条滑块占比需要的是"可视高"，
-                    // 用错会得到恒为满格的假滚动条。
                     .onSizeChanged { viewport = it }
                     .verticalScroll(scroll),
                 horizontalAlignment = Alignment.CenterHorizontally,
             ) {
                 PageTitle("历史记录")
                 Spacer(Modifier.height(scaled(10f)))
-
                 if (entries.isEmpty()) {
                     Spacer(Modifier.height(scaled(20f)))
                     HintText("暂无历史记录\n完成一次计算后会显示在这里", Modifier.fillMaxWidth())
                 } else {
                     entries.forEach { entry ->
-                        // 每条自持一个滑动状态：共用一个会让"划开第二条"把第一条也带开
                         val dismissState = remember(entry) { SwipeToDismissBoxState() }
                         LaunchedEffect(dismissState.currentValue) {
                             if (dismissState.currentValue == SwipeToDismissValue.Dismissed) {
@@ -139,8 +124,6 @@ fun HistoryScreen(
                             modifier = Modifier.fillMaxWidth(),
                         ) { isBackground ->
                             if (isBackground) {
-                                // 背景用 matchParentSize：卡片自身撑出高度，背景跟随，
-                                // 这样不用把卡片高度写死在两处
                                 Box(
                                     modifier = Modifier
                                         .matchParentSize()
@@ -172,8 +155,6 @@ fun HistoryScreen(
                 Spacer(Modifier.height(scaled(12f)))
             }
         }
-
-        // 滚动指示：覆盖整个设计坐标系，弧线贴合表盘右缘
         WatchScrollIndicator(scroll = scroll, viewportPx = viewport.height.toFloat())
     }
 }

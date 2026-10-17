@@ -53,13 +53,6 @@ import com.example.xiaocalc.calc.keypadFor
 import com.example.xiaocalc.design.Motion
 import com.example.xiaocalc.design.NumTextStyle
 
-/**
- * 键盘。布局是**数据驱动**的：行由 [KeyRow] 给出（每行自己的宽度与键宽），
- * 键面由 [CalcKey] 给出，配色由 [KeyKind] 决定。
- *
- * 关键点：每一行按**自己那一行的弦长**铺满，而不是所有行共用一个最小宽度。
- * 圆屏上这会把原本浪费在两侧的空白真正用起来（见 [KeyRow] 的说明）。
- */
 @Composable
 fun Keypad(
     page: KeypadPage,
@@ -67,29 +60,13 @@ fun Keypad(
     hapticsEnabled: Boolean,
     onKey: (CalcKey) -> Unit,
     modifier: Modifier = Modifier,
-    /** 当前角度单位，只用于让 `deg` / `rad` 键的标签反映真实状态 */
+
     angleUnit: AngleUnit = AngleUnit.DEG,
-    /**
-     * 按键字形覆盖。
-     *
-     * 用于让同一个 [CalcKey] 在不同页面表达不同操作——例如单位换算页把 `=` 换成"换"，
-     * 因为在那里"求值"是无意义的（结果是实时的），而"交换起算/目标单位"才是用户要的。
-     * 键的**语义**仍由调用方在 `onKey` 里解释，这里只改显示。
-     */
+
     glyphOverrides: Map<CalcKey, String> = emptyMap(),
-    /**
-     * 按键图标覆盖。优先于 [glyphOverrides]。
-     *
-     * 与字形覆盖同源，但用于"文字表达不好"的操作：单位换算页的交换键
-     * 原先写一个"换"字，既占满整格又只有中文读者能懂；换成双向箭头后
-     * 一眼就能读作"两边对调"，且不依赖字体子集是否含该字。
-     */
+
     iconOverrides: Map<CalcKey, ImageVector> = emptyMap(),
-    /**
-     * 覆盖键位内容。为 null 时按 [page] 取默认键盘。
-     *
-     * 方程页据此复用同一套几何，只换掉键位表——不必为它复制一份布局代码。
-     */
+
     keysOverride: List<CalcKey>? = null,
 ) {
     val gap = scaled(WatchLayout.KEY_GAP)
@@ -103,8 +80,6 @@ fun Keypad(
         modifier = modifier
             .fillMaxWidth()
             .height(totalHeight)
-            // 翻页动画期间两张键盘会横向位移，必须裁掉溢出的部分：
-            // 否则滑出的键会画到显示区、底部操作行甚至表盘外（逐帧录制时实测到过）。
             .clipToBounds(),
         contentAlignment = Alignment.Center,
     ) {
@@ -131,9 +106,6 @@ fun Keypad(
                 rows.forEachIndexed { rowIndex, row ->
                     Row(
                         modifier = Modifier.width(scaled(row.maxWidth)),
-                        // 居中而非靠左：删掉 `x²` 之后函数页只有 15 个键，
-                        // 末行少一格。靠左会留下一个像漏排的缺口，
-                        // 居中则读作对称留白。（满行时两者完全一致。）
                         horizontalArrangement = Arrangement.spacedBy(
                             gap,
                             Alignment.CenterHorizontally,
@@ -157,13 +129,6 @@ fun Keypad(
     }
 }
 
-/**
- * 键盘按键。
- *
- * 尺寸以**设计单位**传入并在内部换算，避免把 du / dp 混着算（字号尤其容易搞错）。
- * 键面现在是宽矩形而不是正方形，所以圆角用**短边百分比**而不是圆形裁剪——
- * 圆形裁剪会把这个比例压成椭圆。
- */
 @Composable
 fun CalcKeyButton(
     key: CalcKey,
@@ -173,22 +138,17 @@ fun CalcKeyButton(
     onKey: (CalcKey) -> Unit,
     modifier: Modifier = Modifier,
     glyphOverride: String? = null,
-    /**
-     * 无障碍描述。为 null 时退回 [CalcKey.label]。
-     *
-     * 单位/货币选择胶囊上只画一个符号（`m`、`ft`、`CNY`），读屏软件照着念
-     * 就是三个字母；这里补上"米""英尺"这样的完整说法。
-     */
+
     description: String? = null,
-    /** 用矢量图标代替文字字面（退格键必须如此：MiSans 不含 U+232B） */
+
     icon: ImageVector? = null,
     containerOverride: Color? = null,
     contentOverride: Color? = null,
     fontSizeOverride: TextUnit? = null,
-    /** 形状覆盖：分页胶囊用胶囊形，与普通键的圆角矩形区分开 */
+
     shape: Shape = RoundedCornerShape(percent = KEY_CORNER_PERCENT),
     fontWeightOverride: FontWeight? = null,
-    /** 标签右侧的小图标（下拉三角等），与标签同色 */
+
     trailingIcon: ImageVector? = null,
 ) {
     val haptics = rememberKeyHaptics(hapticsEnabled)
@@ -225,7 +185,6 @@ fun CalcKeyButton(
                 role = Role.Button,
                 onClickLabel = description ?: key.label,
                 onClick = {
-                    // "=" 是最关键的一次确认操作，给更强的触感
                     haptics(key.kind == KeyKind.EQUALS)
                     onKey(key)
                 },
@@ -282,7 +241,6 @@ fun CalcKeyButton(
     }
 }
 
-/** 字号随按键短边与标签长度自适应，避免逐键做文本测量 */
 private fun labelFontDu(key: CalcKey, shortestDu: Float): Float = when (key.label.length) {
     1 -> shortestDu * 0.62f
     2 -> shortestDu * 0.46f
@@ -291,18 +249,14 @@ private fun labelFontDu(key: CalcKey, shortestDu: Float): Float = when (key.labe
 
 @Composable
 internal fun keyContainerColor(key: CalcKey): Color = when (key.kind) {
-    // 三级中性色阶，按"按压频次"分层——数字 > 函数 > 工具。
-    // 函数键原先用 surfaceContainer(#1B1B1B)，在纯黑底上只比背景亮一点点，
-    // 于是函数页整体发闷、反倒是几个红色运算符"跳"出来，看着像随机高亮。
-    // 数字键最亮：最常按的一层
     KeyKind.DIGIT -> MaterialTheme.colorScheme.surfaceContainerHighest
-    // 运算符用品牌红的容器色，语义与"结果强调"呼应
+
     KeyKind.OPERATOR -> MaterialTheme.colorScheme.secondaryContainer
-    // 函数键比工具键亮一档：它们是函数页的主体内容
+
     KeyKind.FUNCTION -> MaterialTheme.colorScheme.surfaceContainerHigh
-    // "=" 是主操作，直接填充品牌红
+
     KeyKind.EQUALS -> MaterialTheme.colorScheme.secondary
-    // 工具键（C / ⌫ / 未选中的分页）下沉，不与内容抢注意力
+
     KeyKind.ACTION -> MaterialTheme.colorScheme.surfaceContainer
 }
 
@@ -315,28 +269,13 @@ internal fun keyContentColor(key: CalcKey): Color = when (key.kind) {
     KeyKind.ACTION -> MaterialTheme.colorScheme.onSurfaceVariant
 }
 
-/** 圆角半径按短边的百分比取，宽键与窄键的观感才一致 */
 private const val KEY_CORNER_PERCENT = 32
 
-/**
- * "单位/货币换算页的 `=` 键画成双向箭头"。
- *
- * 两页共用同一张表：这两个页面的结果都是实时算出来的，求值没有意义，
- * 而有意义的是"把起算与目标对调"。放在键盘右下角也保证拇指够得到。
- */
 internal val KEYPAD_ICON_OVERRIDES: Map<CalcKey, ImageVector> =
     mapOf(CalcKey.Equals to WatchVectorIcons.Swap)
 
-/** 分页胶囊：50% 圆角 = 胶囊形，用形状把"导航"与"按键"区分开 */
 internal const val CHIP_CORNER_PERCENT = 50
 
-/**
- * 标签需要随状态变化的键。
- *
- * 角度单位键原先键面写死 "deg"，切换后毫无变化——功能其实是好的
- * （`CalculatorState` 里有 `toggleAngleUnit()` 分支），但**按下去看不到任何反馈**，
- * 用户自然会认为按键坏了。改成显示**当前**单位，按下当场变化即是最直接的反馈。
- */
 private fun CalcKey.dynamicGlyph(angleUnit: AngleUnit): String? = when (this) {
     CalcKey.AngleUnit -> if (angleUnit == AngleUnit.DEG) "deg" else "rad"
     else -> null

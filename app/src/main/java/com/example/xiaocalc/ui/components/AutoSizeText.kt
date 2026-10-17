@@ -17,13 +17,6 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.TextUnit
 import androidx.compose.ui.unit.sp
 
-/**
- * 自动缩字号的单行文本。
- *
- * 手表屏幕宽度差异极大（同一份 APK 要跑 1.2" 到 1.5" 圆屏），
- * 计算结果这类"必须完整显示"的文本不能靠固定 sp——这里按可用宽度二分出最大可用字号，
- * 下限 [minFontSize] 保证极端长数字仍然可读（配合显示区的横向滚动）。
- */
 @Composable
 fun AutoSizeText(
     text: String,

@@ -11,15 +11,7 @@ import java.time.LocalDate
 import java.math.MathContext
 import java.math.RoundingMode
 
-/**
- * 货币换算数据层的验证。
- *
- * 解析用例用的是**接口真实返回的报文片段**（实测于 2026-10-16），
- * 不是我照着自己的解析器编出来的格式——那样只能证明"我自洽"，证明不了"对得上接口"。
- */
 class CurrencyTest {
-
-    /** api.frankfurter.dev/v2/rates?base=CNY&quotes=USD,EUR,JPY 的真实响应 */
     private val realResponse = """
         [
           {"date":"2026-10-16","base":"CNY","quote":"EUR","rate":0.13335},
@@ -32,8 +24,6 @@ class CurrencyTest {
         v.round(MathContext(n, RoundingMode.HALF_UP)).stripTrailingZeros().toPlainString()
 
     private fun of(s: String) = BigDecimal(s)
-
-    // ------------------------------------------------------------------ 解析
 
     @Test
     fun `解析真实响应`() {
@@ -50,35 +40,29 @@ class CurrencyTest {
     fun `基准自身按定义为一`() {
         val table = RateCodec.parse(realResponse)!!
         assertEquals("1", table.rateOf("CNY")!!.toPlainString())
-        // 表里没有的货币返回 null，而不是悄悄当成 1
         assertNull(table.rateOf("GBP"))
     }
 
     @Test
     fun `格式不对时整份丢弃`() {
-        // 半份汇率比没有更危险：用户会把基于错数据的换算当真
         assertNull(RateCodec.parse(""))
         assertNull(RateCodec.parse("[]"))
         assertNull(RateCodec.parse("{}"))
         assertNull(RateCodec.parse("not json"))
         assertNull(RateCodec.parse("""[{"quote":"USD","rate":1.0}]"""))
         assertNull(RateCodec.parse("""[{"base":"CNY","quote":"USD"}]"""))
-        // 汇率为 0 或负数不可能
         assertNull(RateCodec.parse("""[{"date":"d","base":"CNY","quote":"USD","rate":0}]"""))
         assertNull(RateCodec.parse("""[{"date":"d","base":"CNY","quote":"USD","rate":-1}]"""))
     }
 
     @Test
     fun `一份表里混了两个基准会被拒`() {
-        // 两个基准之间无法互相换算，接受它等于凭空造出一组错误汇率
         val mixed = """
             [{"date":"d","base":"CNY","quote":"USD","rate":0.15},
              {"date":"d","base":"USD","quote":"EUR","rate":0.9}]
         """.trimIndent()
         assertNull(RateCodec.parse(mixed))
     }
-
-    // ------------------------------------------------------------ 本地存储
 
     @Test
     fun `编码解码往返一致`() {
@@ -92,23 +76,18 @@ class CurrencyTest {
     fun `解码拒绝坏数据`() {
         assertNull(RateCodec.decode(null))
         assertNull(RateCodec.decode(""))
-        assertNull(RateCodec.decode("v1|CNY"))            // 段数不对
-        assertNull(RateCodec.decode("v2|CNY|d|USD=1"))    // 版本不对
-        assertNull(RateCodec.decode("v1|CNY|d|USD=x"))    // 汇率不是数
-        assertNull(RateCodec.decode("v1|CNY|d|USD=0"))    // 汇率非正
-        assertNull(RateCodec.decode("v1|CNY|d|"))         // 没有任何汇率
+        assertNull(RateCodec.decode("v1|CNY"))
+        assertNull(RateCodec.decode("v2|CNY|d|USD=1"))
+        assertNull(RateCodec.decode("v1|CNY|d|USD=x"))
+        assertNull(RateCodec.decode("v1|CNY|d|USD=0"))
+        assertNull(RateCodec.decode("v1|CNY|d|"))
     }
-
-    // ------------------------------------------------------------------ 换算
 
     @Test
     fun `换算经过统一基准`() {
         val table = RateCodec.parse(realResponse)!!
-        // 100 CNY → USD
         assertEquals("14.961", sig(table.convert(of("100"), "CNY", "USD")!!))
-        // 100 CNY → JPY
         assertEquals("2365.5", sig(table.convert(of("100"), "CNY", "JPY")!!))
-        // 同币种换算是恒等
         assertEquals("100", sig(table.convert(of("100"), "CNY", "CNY")!!))
     }
 
@@ -132,8 +111,6 @@ class CurrencyTest {
         assertNull(table.convert(of("100"), "GBP", "CNY"))
     }
 
-    // -------------------------------------------------------------- 货币表
-
     @Test
     fun `货币表结构正确`() {
         assertTrue("至少要有十种货币", Currencies.catalog.size >= 10)
@@ -145,14 +122,10 @@ class CurrencyTest {
         assertTrue("标签不能为空", Currencies.catalog.all { it.label.isNotBlank() })
     }
 
-    // -------------------------------------------------------------- 授权把关
-
     @Test
     fun `未授权时不发起请求`() {
         val store = InMemoryRateStore()
         val state = CurrencyState(store)
-
-        // beginRefresh 是唯一能进入"准备请求"状态的入口
         assertFalse("未授权时必须拒绝", state.beginRefresh(allowNetwork = false))
         assertEquals(RateStatus.NotAuthorized, state.status)
     }
@@ -170,7 +143,6 @@ class CurrencyTest {
         val state = CurrencyState(store)
         state.beginRefresh(allowNetwork = true)
         state.applyResult(RateCodec.parse(realResponse))
-
         assertEquals(RateStatus.Updated("2026-10-16"), state.status)
         assertEquals("缓存应当已写入", "2026-10-16", store.loadRates()?.date)
     }
@@ -181,11 +153,8 @@ class CurrencyTest {
         val state = CurrencyState(store)
         state.beginRefresh(allowNetwork = true)
         state.applyResult(null, "网络不可用")
-
         assertEquals(RateStatus.Failed("网络不可用"), state.status)
-        // 断网时仍应能用上次的汇率换算
         assertEquals("2026-10-16", state.table?.date)
-
         for (c in "100") state.onKey(CalcKey.Digit(c))
         assertEquals("14.961", sig(state.convertedValue(CalcSettings())!!))
     }
@@ -196,14 +165,10 @@ class CurrencyTest {
         state.beginRefresh(allowNetwork = true)
         state.applyResult(RateCodec.parse(realResponse))
         assertTrue(state.status is RateStatus.Updated)
-
         state.onAuthorizationRevoked()
         assertEquals(RateStatus.NotAuthorized, state.status)
-        // 已缓存的汇率仍在：撤销的是"联网"，不是"清空数据"
         assertNotNull(state.table)
     }
-
-    // ------------------------------------------------------------------ 界面
 
     @Test
     fun `金额可以是表达式`() {
@@ -214,7 +179,6 @@ class CurrencyTest {
                 '×' -> state.onKey(CalcKey.Times)
             }
         }
-        // 100 CNY → USD
         assertEquals("14.961", sig(state.convertedValue(CalcSettings())!!))
     }
 
@@ -223,7 +187,6 @@ class CurrencyTest {
         val state = CurrencyState(InMemoryRateStore(RateCodec.parse(realResponse)))
         assertNull(state.convertedValue(CalcSettings()))
         assertNull(state.inputError(CalcSettings()))
-
         state.onKey(CalcKey.Digit('1'))
         state.onKey(CalcKey.Plus)
         assertNull("算式不完整时不应给出结果", state.convertedValue(CalcSettings()))
@@ -235,17 +198,13 @@ class CurrencyTest {
         val state = CurrencyState(InMemoryRateStore())
         val cny = Currencies.require("CNY")
         val usd = Currencies.require("USD")
-
-        // 选中的目标恰好等于当前来源时，两者对调而不是变成同一种货币
         state.selectTo(cny)
         assertTrue("来源与目标不应相同", state.from != state.to)
         state.selectFrom(usd)
         assertTrue("来源与目标不应相同", state.from != state.to)
-
         val beforeFrom = state.from
         val beforeTo = state.to
         state.swap()
-        // 交换是对称的：新的来源是旧的来源，反之亦然
         assertEquals(beforeTo, state.from)
         assertEquals(beforeFrom, state.to)
     }
@@ -254,10 +213,7 @@ class CurrencyTest {
     fun `汇率过期判定按日期而不是按小时`() {
         val store = InMemoryRateStore()
         val state = CurrencyState(store)
-
-        // 没有缓存：第一次总得取一次
         assertTrue("无缓存时应当需要续期", state.needsAutoRenew(LocalDate.of(2026, 10, 17)))
-
         state.applyResult(
             RateTable("USD", mapOf("CNY" to BigDecimal("7.1")), "2026-10-16"),
         )

@@ -2,26 +2,11 @@ package com.example.xiaocalc.calc
 
 import java.math.BigDecimal
 
-/** 一种货币 */
 data class Currency(val code: String, val label: String) {
-    /** 显示用标签，如 `人民币 CNY` */
     val display: String get() = "$label $code"
 }
 
-/**
- * 支持的货币表。
- *
- * 只列出常用的约 30 种，而不是接口能给的 223 种：
- * 手表上滚过两百项的列表毫无体验可言，而绝大多数换算集中在少数几种。
- */
 object Currencies {
-
-    /**
-     * 取汇率时使用的基准。
-     *
-     * 固定用 USD：接口返回的是"1 基准 = N 目标"，任意两种货币互换
-     * 都需要经过同一个基准，因此基准必须固定，否则缓存的汇率无法互相换算。
-     */
     const val BASE = "USD"
 
     val catalog: List<Currency> = listOf(
@@ -57,7 +42,6 @@ object Currencies {
         Currency("SAR", "里亚尔"),
     )
 
-    /** 请求时要带的货币代码（不含基准自身，接口会隐式包含基准） */
     val quoteCodes: List<String> = catalog.map { it.code }.filter { it != BASE }
 
     private val byCode: Map<String, Currency> = catalog.associateBy { it.code }
@@ -67,30 +51,19 @@ object Currencies {
     fun require(code: String): Currency = byCode.getValue(code)
 }
 
-/**
- * 一份汇率快照：某一天、以 [base] 为基准的汇率表。
- *
- * `rates[X]` 的含义是 **1 个 [base] 等于多少 X**。
- * 基准自身不在表里（按定义为 1），由 [rateOf] 补齐。
- */
 data class RateTable(
     val base: String,
     val rates: Map<String, BigDecimal>,
-    /** 汇率日期（接口给出的是最近一个工作日的收盘价） */
+
     val date: String,
 ) {
-
     fun rateOf(code: String): BigDecimal? =
         if (code == base) BigDecimal.ONE else rates[code]
 
-    /**
-     * 换算。任一方向的汇率缺失时返回 null，而不是退回一个错的数字。
-     */
     fun convert(amount: BigDecimal, from: String, to: String): BigDecimal? {
         val fromRate = rateOf(from) ?: return null
         val toRate = rateOf(to) ?: return null
         if (fromRate.signum() == 0) return null
-        // 金额 → 基准 → 目标
         return Dec.div(Dec.mul(amount, toRate), fromRate)
     }
 

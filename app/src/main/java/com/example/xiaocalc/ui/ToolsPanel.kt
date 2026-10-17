@@ -37,18 +37,6 @@ import com.example.xiaocalc.adaptive.scaledSp
 import com.example.xiaocalc.design.Motion
 import com.example.xiaocalc.ui.components.rememberKeyHaptics
 
-/**
- * 工具格：占用**键盘所在的区域**，四格两行。
- *
- * ## 为什么不是一开一关的全屏面板
- *
- * 全屏面板会把计算表达式一起盖住，用户点完工具回来还得重新看一眼上一步算的是什么；
- * 而这几件事本质上都是"接着当前这笔计算去做点什么"。
- * 让工具格直接顶替键盘，显示区始终留在原位，上下文不会断。
- *
- * 顺带一个好处：键盘区本来就是整块表盘里最大的一块可点区域，
- * 四个格子每个约 145×83du（≈91×52dp），比原先菜单里那一行小字好按太多。
- */
 @Composable
 fun ToolsGrid(
     zone: Zone,
@@ -57,14 +45,9 @@ fun ToolsGrid(
     onUnits: () -> Unit,
     onCurrency: () -> Unit,
     modifier: Modifier = Modifier,
-    /**
-     * 是否播放错峰入场。截图测试传 false：
-     * [animateFloatAsState] 在首次合成时直接取目标值，因此关掉后图块立即可见，
-     * 不会出现"渲染时 alpha 还是 0、整格是空的"这种假失败。
-     */
+
     animated: Boolean = true,
 ) {
-    // 入场动画只播一次；每次重新合成时重播，所以用 remember 而非 rememberSaveable
     var shown by remember { mutableStateOf(false) }
     LaunchedEffect(Unit) { shown = true }
 
@@ -91,13 +74,6 @@ fun ToolsGrid(
     }
 }
 
-/**
- * 一个工具格。
- *
- * [order] 决定它在错峰动画里的先后；[shown] 由外层统一切换，
- * 使四格共享同一个起点、只在延迟上错开——错峰让视线有落点，
- * 也顺带说明"这是四个并列的入口"而不是一张图。
- */
 @Composable
 private fun ToolTile(
     title: String,
@@ -125,7 +101,6 @@ private fun ToolTile(
             .height(scaled(heightDu))
             .graphicsLayer {
                 alpha = progress
-                // 从 0.88 放大到 1：比纯淡入更有"落位"感，又不至于像弹窗
                 val s = 0.88f + 0.12f * progress
                 scaleX = s
                 scaleY = s
@@ -172,5 +147,4 @@ private fun ToolTile(
     }
 }
 
-/** 错峰间隔：四格全部出现约需 135ms，只比统一淡入慢一点，但可读性更好 */
 private const val STAGGER_MS = 45

@@ -51,12 +51,6 @@ import com.example.xiaocalc.ui.components.WatchScrollIndicator
 import com.example.xiaocalc.ui.components.rememberKeyHaptics
 import kotlin.math.roundToInt
 
-/**
- * 设置页。
- *
- * 前三项沿用旧版语义与存储 key（升级不丢配置），并新增角度单位、千分位、触感三项。
- * 每一项都直接映射到 [CalcSettings] 的一个字段，不再有"设置页用下标对应控制器数组"的隐式耦合。
- */
 @Composable
 fun SettingsScreen(
     controller: CalculatorState,
@@ -71,7 +65,6 @@ fun SettingsScreen(
     val settings = controller.settings
 
     Box(modifier.fillMaxSize()) {
-        // 表冠 / 旋转表圈滚动列表
         RotaryScrollHandler(AppPage.SETTINGS, scroll)
         Column(
             modifier = Modifier.fillMaxSize(),
@@ -93,21 +86,17 @@ fun SettingsScreen(
                 },
                 center = { ClockText(time) },
             )
-
             Spacer(Modifier.height(scaled(layout.content.top - layout.header.bottom)))
-
             Column(
                 modifier = Modifier
                     .width(scaled(layout.content.maxWidth))
                     .height(scaled(layout.content.height))
-                    // onSizeChanged 在 verticalScroll 外侧才量到"可视高"（见 HistoryScreen 的说明）
                     .onSizeChanged { viewport = it }
                     .verticalScroll(scroll),
                 horizontalAlignment = Alignment.CenterHorizontally,
             ) {
                 PageTitle("设置")
                 Spacer(Modifier.height(scaled(12f)))
-
                 SectionLabel("计算规则", Modifier.fillMaxWidth())
                 Spacer(Modifier.height(scaled(6f)))
                 SettingRow(
@@ -134,12 +123,9 @@ fun SettingsScreen(
                         }
                     },
                 )
-
                 Spacer(Modifier.height(scaled(14f)))
                 SectionLabel("显示与反馈", Modifier.fillMaxWidth())
                 Spacer(Modifier.height(scaled(6f)))
-                // 小数位数是唯一需要连续取值的设置：开关表达不了，循环点击要点十几次。
-                // 直接在本页拖一条滑杆，左边标题、右边当前取值、下面一行说明"意味着什么"。
                 SliderRow(
                     title = "小数位数",
                     valueLabel = "${settings.decimals}",
@@ -187,7 +173,6 @@ fun SettingsScreen(
                     checked = settings.haptics,
                     onToggle = { value -> controller.updateSettings { it.copy(haptics = value) } },
                 )
-
                 Spacer(Modifier.height(scaled(14f)))
                 SectionLabel("外观", Modifier.fillMaxWidth())
                 Spacer(Modifier.height(scaled(6f)))
@@ -200,7 +185,6 @@ fun SettingsScreen(
                         controller.updateSettings { it.copy(themeColor = it.themeColor.next()) }
                     },
                 )
-
                 Spacer(Modifier.height(scaled(14f)))
                 SectionLabel("网络", Modifier.fillMaxWidth())
                 Spacer(Modifier.height(scaled(6f)))
@@ -216,7 +200,6 @@ fun SettingsScreen(
                         controller.updateSettings { it.copy(allowNetwork = value) }
                     },
                 )
-
                 Spacer(Modifier.height(scaled(16f)))
                 SectionLabel("关于", Modifier.fillMaxWidth())
                 Spacer(Modifier.height(scaled(8f)))
@@ -228,8 +211,6 @@ fun SettingsScreen(
                 Spacer(Modifier.height(scaled(4f)))
                 AboutLine("© Xiaoxiao 2026")
                 Spacer(Modifier.height(scaled(14f)))
-                // 弱入口：普通用户不需要诊断信息，所以它是底部一行小字而非醒目卡片；
-                // 但需要它的人（报 issue）一眼能找到——比"长按版本号"这类隐藏手势友好。
                 DiagnosticsEntry(
                     onClick = {
                         haptics(false)
@@ -239,7 +220,6 @@ fun SettingsScreen(
                 Spacer(Modifier.height(scaled(16f)))
             }
         }
-
         WatchScrollIndicator(scroll = scroll, viewportPx = viewport.height.toFloat())
     }
 }
@@ -258,7 +238,6 @@ private fun AboutLine(text: String) {
     )
 }
 
-/** 设置页底部的诊断入口：弱化成"一行字"，但仍是带涟漪与触感的真实点击目标 */
 @Composable
 private fun DiagnosticsEntry(onClick: () -> Unit) {
     val interaction = remember { MutableInteractionSource() }
@@ -267,7 +246,6 @@ private fun DiagnosticsEntry(onClick: () -> Unit) {
         modifier = Modifier
             .fillMaxWidth()
             .clip(RoundedCornerShape(percent = 32))
-            // 顺序关键：先 clickable 再 padding，整行才是热区（否则只有文字可点）
             .clickable(
                 interactionSource = interaction,
                 indication = ripple(),

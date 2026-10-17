@@ -7,22 +7,10 @@ import java.math.BigDecimal
 import java.math.MathContext
 import java.math.RoundingMode
 
-/**
- * 方程求解的验证。
- *
- * 主力是三条**不依赖我记忆数值**的性质：
- *
- *  1. **把根代回原方程**，残差必须为 0 —— 这直接检验"解"的定义；
- *  2. **韦达定理**：两根之和 = −b/a、两根之积 = c/a。它对实根与复根同样成立，
- *     因此能同时守住复根分支（复根没法靠"代回去"检验，除非再写一套复数求值）；
- *  3. 精确形式的**结构**（如"含 √2 且不含 √1"），而不是逐字符比对整串。
- */
 class EquationSolverTest {
-
     private fun sig(v: BigDecimal, n: Int = 25): String =
         v.round(MathContext(n, RoundingMode.HALF_UP)).stripTrailingZeros().toPlainString()
 
-    /** 把 x 代回 `左 − 右`，返回残差 */
     private fun residual(equation: String, x: BigDecimal): BigDecimal {
         val parts = equation.split("=")
         val f = "(${parts[0]})-(${parts[1]})"
@@ -41,25 +29,14 @@ class EquationSolverTest {
         return (result as EquationSolution.Failed).error
     }
 
-    /**
-     * 精确形式归一到集合。
-     *
-     * **不用列表排序比对**：减号在精确形式里是 U+2212（码位大于所有 ASCII），
-     * 归一成 ASCII 后 `+`(0x2B) 又排在 `-`(0x2D) 前面——无论怎么排，
-     * 顺序都不反映任何语义，而我却要为它写一堆反直觉的期望值。
-     * 解本来就是一组根，用集合比对既正确又不会因符号写法而误报。
-     */
     private fun exactForms(solution: EquationSolution.Solved): Set<String> =
         solution.roots.mapNotNull { it.exact }.map { it.replace('−', '-') }.toSet()
 
-    /** 实数根代回原方程，残差必须落在工作精度量级内 */
     private fun assertRootsSatisfy(equation: String, solution: EquationSolution.Solved) {
         for (root in solution.roots) {
             assertTrue("$equation 的根不是实数：$root", root is EquationRoot.Real)
             val value = (root as EquationRoot.Real).value
             val r = residual(equation, value).abs()
-            // 存的根是精确值的 50 位小数近似，代回去得到 ~1e-49 而非严格 0，
-            // 这正是工作精度的量级；用 1e-40 作相对容差既不过松也不会误报
             assertTrue(
                 "$equation：把 $value 代回去残差为 $r，超出容差",
                 r < BigDecimal("1E-40").max(value.abs().multiply(BigDecimal("1E-40"))),
@@ -67,9 +44,7 @@ class EquationSolverTest {
         }
     }
 
-    /** 韦达定理：对实根与复根都成立 */
     private fun assertVieta(a: BigDecimal, b: BigDecimal, c: BigDecimal, solution: EquationSolution.Solved) {
-        // 重根时实现只返回一个根，但韦达定理说的是"两个根"（此处两倍）之和
         val sum = if (solution.roots.size == 1) {
             Dec.mul(Dec.of(2), realOf(solution.roots[0]))
         } else {
@@ -81,7 +56,6 @@ class EquationSolverTest {
                 val z2 = solution.roots[1]
                 val (r1, i1) = partsOf(z1)
                 val (r2, i2) = partsOf(z2)
-                // (r1+i·i1)(r2+i·i2) 的实部
                 Dec.sub(Dec.mul(r1, r2), Dec.mul(i1, i2))
             }
             else -> Dec.mul(realOf(solution.roots[0]), realOf(solution.roots[0]))
@@ -99,8 +73,6 @@ class EquationSolverTest {
         is EquationRoot.Real -> root.value to BigDecimal.ZERO
         is EquationRoot.Complex -> root.real to root.imaginary
     }
-
-    // ------------------------------------------------------------------ 一次
 
     @Test
     fun `一元一次`() {
@@ -121,13 +93,10 @@ class EquationSolverTest {
 
     @Test
     fun `移项把右边的项搬到左边`() {
-        // 2x+3 = x+5 → x = 2
         val solution = solved("2x+3=x+5")
         assertEquals("2", sig(realOf(solution.roots[0]), 16))
         assertRootsSatisfy("2x+3=x+5", solution)
     }
-
-    // ------------------------------------------------------------------ 二次
 
     @Test
     fun `判别式为完全平方时两根都是整数`() {
@@ -155,15 +124,12 @@ class EquationSolverTest {
 
     @Test
     fun `根式会约去公因子`() {
-        // x²-2x-1 = 0 → 1±√2
         assertEquals(setOf("1-√2", "1+√2"), exactForms(solved("x^2-2x-1=0")))
-        // 2x²-4x-1 = 0 → (2±√6)/2
         assertEquals(setOf("(2-√6)/2", "(2+√6)/2"), exactForms(solved("2x^2-4x-1=0")))
     }
 
     @Test
     fun `精确形式里不会出现根号一`() {
-        // 判别式是完全平方时若忘了化简，会写出 (3±√1)/2 这种破绽
         for (equation in listOf("x^2-3x+2=0", "x^2-5x+6=0", "4x^2-4x+1=0")) {
             for (root in solved(equation).roots) {
                 val exact = root.exact ?: continue
@@ -183,10 +149,8 @@ class EquationSolverTest {
 
     @Test
     fun `复根带实数部分`() {
-        // x²+2x+5 = 0 → -1±2i
         val solution = solved("x^2+2x+5=0")
         assertEquals(setOf("-1-2i", "-1+2i"), exactForms(solution))
-        // 韦达定理对复根同样成立
         assertVieta(BigDecimal.ONE, BigDecimal("2"), BigDecimal("5"), solution)
     }
 
@@ -208,8 +172,6 @@ class EquationSolverTest {
             assertVieta(BigDecimal(a), BigDecimal(b), BigDecimal(c), solution)
         }
     }
-
-    // ------------------------------------------------------------------ 失败
 
     @Test
     fun `缺少等号时明确报错`() {

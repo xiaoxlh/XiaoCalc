@@ -28,12 +28,6 @@ import androidx.compose.ui.unit.TextUnit
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 
-/**
- * 当前屏幕的换算信息。
- *
- * @param layout 已按形状推导好的分区方案
- * @param scale  设计单位（du）→ dp 的系数；1du 在 240dp 表盘上约等于 0.625dp
- */
 @Immutable
 data class WatchMetrics(
     val layout: WatchLayout,
@@ -46,43 +40,24 @@ private val DefaultMetrics = WatchMetrics(WatchLayout.of(round = false), 1f)
 
 val LocalWatchMetrics = staticCompositionLocalOf { DefaultMetrics }
 
-/** 设计单位 → dp */
 @Composable
 fun scaled(value: Float): Dp = (value * LocalWatchMetrics.current.scale).dp
 
-/** 设计单位 → sp（仍受系统字体缩放影响，缩放上限在 theme 中收敛） */
 @Composable
 fun scaledSp(value: Float): TextUnit = (value * LocalWatchMetrics.current.scale).sp
 
-/** 设计单位宽度（`width` 语义） */
 fun Modifier.widthDu(value: Float): Modifier = composed { width(scaled(value)) }
 
-/** 设计单位宽度（`widthIn(max = )` 语义） */
 fun Modifier.maxWidthDu(value: Float): Modifier = composed { widthIn(max = scaled(value)) }
 
-/** 设计单位正方形尺寸 */
 fun Modifier.sizeDu(value: Float): Modifier = composed { size(scaled(value)) }
 
-/**
- * 把任意尺寸 / 形状的手表屏幕收敛为一块 **居中的正方形内容区**，
- * 并把该正方形解释为 384×384 的设计坐标。
- *
- * 关键取舍（相对旧实现）：
- *  - 圆形屏不再整体缩到 0.95 再逐页打魔数内边距，而是保留 1:1 并交由 [Disc] 的弦长约束；
- *  - 圆形屏不叠加 systemBars / displayCutout inset：
- *    手表圆屏的 bezel inset 是**环形**的，按矩形 inset 收缩会把圆心挤偏，
- *    而内接区域本就远离表盘边缘，无需再让位；
- *  - 方形/异形屏仍按 systemBars + displayCutout 收缩，保证不被状态栏遮挡。
- */
 @Composable
 fun WatchFrame(
     modifier: Modifier = Modifier,
     forceRound: Boolean? = null,
     content: @Composable BoxScope.() -> Unit,
 ) {
-    // 用 LocalConfiguration 而不是 LocalContext.current.resources.configuration：
-    // 后者在 Compose 1.10 起被判定为"绕过 Compose 的配置感知"——
-    // 直接读 Context 不会随配置变化触发重组，而 LocalConfiguration 会。
     val configuration = LocalConfiguration.current
     val detectedRound = configuration.isScreenRound
     val round = forceRound ?: detectedRound
@@ -103,17 +78,14 @@ fun WatchFrame(
         val sidePx = minOf(constraints.maxWidth, constraints.maxHeight).coerceAtLeast(1)
         val sideDp = with(density) { sidePx.toDp() }
         val scale = (sideDp.value / Disc.DESIGN).coerceAtLeast(0.01f)
-
         CompositionLocalProvider(LocalWatchMetrics provides WatchMetrics(layout, scale)) {
             Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                // 内容区恒为正方形：圆形屏即表盘外接正方形，方形屏即短边
                 Box(Modifier.size(sideDp), content = content)
             }
         }
     }
 }
 
-/** 便于单个组件测试/预览时直接提供度量值 */
 @Composable
 fun ProvideWatchMetrics(
     round: Boolean,

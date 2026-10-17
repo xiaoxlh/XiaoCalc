@@ -42,15 +42,6 @@ import com.example.xiaocalc.adaptive.scaled
 import com.example.xiaocalc.adaptive.scaledSp
 import com.example.xiaocalc.design.NumTextStyle
 
-/**
- * 触感反馈。
- *
- * 走 Compose 的 [LocalHapticFeedback]（底层是 `View.performHapticFeedback`），
- * 因此**不需要** VIBRATE 权限，也不会被"未声明权限"静默吞掉；
- * 同时天然遵循系统的触感开关。
- *
- * @return 一个 `(strong: Boolean) -> Unit` 的回调：true 表示确认类强反馈
- */
 @Composable
 fun rememberKeyHaptics(enabled: Boolean): (Boolean) -> Unit {
     val haptic = LocalHapticFeedback.current
@@ -65,13 +56,6 @@ fun rememberKeyHaptics(enabled: Boolean): (Boolean) -> Unit {
     }
 }
 
-/**
- * 表盘顶部操作栏。
- *
- * 三个插槽（leading / center / trailing）都被约束在 [Zone.maxWidth] 内——
- * 圆形屏上该值由弦长给出，因此**永远不可能**把按钮推到表盘外，
- * 页面无需再为圆屏写额外内边距。
- */
 @Composable
 fun WatchHeader(
     zone: Zone,
@@ -104,15 +88,6 @@ fun WatchHeader(
     }
 }
 
-/**
- * 圆形图标按钮。
- *
- * [touchSize] 是**命中区**（尽量接近 40dp 的可点按体验），[glyphSize] 是视觉尺寸；
- * 圆形屏空间紧张，靠"命中区略大于视觉"来兼顾手感与构图。
- *
- * 命中区必须 ≤ 顶栏分区高度：`Modifier.size()` 会被父级约束收紧，
- * 否则圆角会被压成椭圆、命中面积也会缩水。
- */
 @Composable
 fun WatchIconButton(
     onClick: () -> Unit,
@@ -150,12 +125,6 @@ fun WatchIconButton(
     }
 }
 
-/**
- * 顶栏里的「文字图标」按钮（如 `C`）。
- *
- * 计算器的清空用文字字形比矢量图标更易识别，也省下一个 vector 资源；
- * 字形来自随包字体的子集，渲染结果可控（退格键则必须用矢量，见 [WatchVectorIcons]）。
- */
 @Composable
 fun WatchGlyphButton(
     glyph: String,
@@ -191,7 +160,6 @@ fun WatchGlyphButton(
     }
 }
 
-/** 顶栏里的时钟文本 */
 @Composable
 fun ClockText(time: String, modifier: Modifier = Modifier) {
     Text(
@@ -205,7 +173,6 @@ fun ClockText(time: String, modifier: Modifier = Modifier) {
     )
 }
 
-/** 页面标题（历史/设置/欢迎页使用） */
 @Composable
 fun PageTitle(text: String, modifier: Modifier = Modifier) {
     Text(
@@ -218,8 +185,6 @@ fun PageTitle(text: String, modifier: Modifier = Modifier) {
     )
 }
 
-// 统一图标来源，避免每个页面各写一套 import。
-// 仅使用 material-icons-core 自带的图标集（不引 material-icons-extended，省 ~30MB 包体）。
 object WatchIcons {
     val Back: ImageVector = Icons.AutoMirrored.Filled.ArrowBack
     val More: ImageVector = Icons.Filled.MoreVert
@@ -229,7 +194,6 @@ object WatchIcons {
     val Check: ImageVector = Icons.Filled.Check
 }
 
-/** 供空态使用的小号说明文字 */
 @Composable
 fun HintText(text: String, modifier: Modifier = Modifier, color: Color? = null) {
     Text(

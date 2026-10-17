@@ -4,17 +4,9 @@ import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
-/**
- * 图像页状态机的验证。
- *
- * 重点在**视图范围**与**多函数的下标映射**：缩放的锚点、上下限、
- * 以及"正在编辑的那一条"在可画列表里的位置（颜色与关键点都按它取）。
- */
 class GraphStateTest {
-
     private fun state() = GraphState()
 
-    /** 数值相等即可：BigDecimal 的 scale 会随运算路径变化，`20` 与 `20.00` 是同一个值 */
     private fun assertDec(expected: String, actual: java.math.BigDecimal) =
         assertEquals(expected, actual.stripTrailingZeros().toPlainString())
 
@@ -30,7 +22,6 @@ class GraphStateTest {
     fun `放大以视图中心为锚点`() {
         val s = state()
         s.zoom(2)
-        // 中心仍是 0，跨度减半
         assertDec("-5", s.xMin)
         assertDec("5", s.xMax)
     }
@@ -56,15 +47,12 @@ class GraphStateTest {
     @Test
     fun `缩放有上下限`() {
         val s = state()
-        // 连续放大会被最小半跨度挡住
         repeat(40) { s.zoom(2) }
         assertTrue("半跨度不应小于下限", s.span.signum() > 0)
         assertTrue(
             "半跨度应被下限截住",
             s.span >= java.math.BigDecimal("0.002"),
         )
-
-        // 连续缩小会被最大半跨度挡住
         repeat(60) { s.zoom(-2) }
         assertTrue(
             "半跨度应被上限截住",
@@ -83,16 +71,12 @@ class GraphStateTest {
         assertDec("10", s.yMax)
     }
 
-    // ------------------------------------------------------------ 拖与缩
-
     @Test
     fun `平移按视野比例移动两轴`() {
         val s = state()
-        // 向右拖半个屏 ⇒ 视野左移 10（跨度 20 的一半）
         s.panBy(0.5f, 0f)
         assertDec("-20", s.xMin)
         assertDec("0", s.xMax)
-        // 向下拖四分之一屏 ⇒ 视野上移 5
         s.panBy(0f, 0.25f)
         assertDec("-5", s.yMin)
         assertDec("15", s.yMax)
@@ -119,7 +103,6 @@ class GraphStateTest {
     @Test
     fun `以锚点缩放时锚点坐标不动`() {
         val s = state()
-        // 锚点取右上角（x 的 1.0 = xMax，y 的 0.0 = yMin）
         s.zoomAt(2f, 1f, 0f)
         assertDec("0", s.xMin)
         assertDec("10", s.xMax)
@@ -127,10 +110,6 @@ class GraphStateTest {
         assertDec("0", s.yMax)
     }
 
-    /**
-     * 自动贴合是"谁的视野"的问题：用户拖过一次之后，视野就是他的，
-     * 再跟着表达式自动贴合等于每敲一个字就把视野抢回去。
-     */
     @Test
     fun `拖动后关闭自动贴合，重置后恢复`() {
         val s = state()
@@ -149,7 +128,6 @@ class GraphStateTest {
         s.fitY(java.math.BigDecimal("-3"), java.math.BigDecimal("7"))
         assertDec("-3", s.yMin)
         assertDec("7", s.yMax)
-        // 倒置区间直接忽略，不该把视野翻过来
         s.fitY(java.math.BigDecimal("7"), java.math.BigDecimal("-3"))
         assertDec("7", s.yMax)
         assertDec("-3", s.yMin)
@@ -172,7 +150,6 @@ class GraphStateTest {
         s.selectNext(3)
         s.selectNext(3)
         assertEquals("三次 next 后应回到起点", 0, s.selected)
-
         s.selectPrevious(3)
         assertEquals("向前越界应回到末尾", 2, s.selected)
     }
@@ -214,8 +191,6 @@ class GraphStateTest {
         assertEquals(0, s.selected)
     }
 
-    // ------------------------------------------------------------ 多函数
-
     @Test
     fun `默认只有一条空函数`() {
         val s = GraphState()
@@ -229,7 +204,6 @@ class GraphStateTest {
     @Test
     fun `可以加到九条，第十条被拒绝`() {
         val s = GraphState()
-        // 第一条已存在，再加 8 条正好九条；每条都要写上，否则末尾的空白会被复用
         s.setExpression("x")
         repeat(GraphState.MAX_FUNCTIONS - 1) {
             assertTrue("第 ${s.functions.size + 1} 条应当加得进去", s.addFunction())
@@ -272,21 +246,13 @@ class GraphStateTest {
         assertEquals(0, s.editing)
     }
 
-    /**
-     * `activeCurve` 是**可画列表**里的下标，而不是函数列表里的下标。
-     *
-     * 两者只在"列表里没有空白条目"时相等。抽屉允许存在刚点"+"还没写的空行，
-     * 拿函数下标去取颜色会把整排曲线错位一格。
-     */
     @Test
     fun `activeCurve 跳过空白条目`() {
         val s = GraphState()
         s.setExpression("x")
         assertEquals(0, s.activeCurve)
-
         s.addFunction()
         assertEquals("正在编辑空白条目时没有选中曲线", -1, s.activeCurve)
-
         s.addFunction()
         s.setExpression("x^2")
         assertEquals("前面只有一条可画，因此是第二条", 1, s.activeCurve)
@@ -298,7 +264,7 @@ class GraphStateTest {
         s.setExpression("x")
         s.addFunction()
         s.setExpression("x^2")
-        s.addFunction() // 末尾留一个空白条目
+        s.addFunction()
         assertEquals(3, s.functions.size)
         assertEquals(2, s.drawable.size)
     }
@@ -311,7 +277,6 @@ class GraphStateTest {
         s.addFunction(); s.setExpression("c")
         s.removeFunction(1)
         assertEquals(listOf("a", "c"), s.functions.map { it.expression })
-        // 颜色按位置分配，因此编辑下标要收敛到合法范围
         assertTrue(s.editing in s.functions.indices)
     }
 

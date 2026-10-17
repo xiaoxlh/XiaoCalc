@@ -62,21 +62,6 @@ import com.example.xiaocalc.ui.components.WatchVectorIcons
 import com.example.xiaocalc.ui.components.rememberKeyHaptics
 import kotlinx.coroutines.delay
 
-/**
- * 诊断信息页。
- *
- * 存在的理由：这个应用要面对大量不同型号的手表，报 issue 的人没法描述
- * "屏幕是不是圆的""表冠能不能用"这类问题——而这些恰好是决定行为的关键。
- * 让用户**截一张图**就能把全部关键信息带给开发者。
- *
- * 由此推出两条设计约束：
- * 1. **弱入口**：普通用户不需要它，所以入口是设置页底部的一行小字，而不是一个醒目卡片；
- * 2. **尽量一屏放得下**：东西越多，用户越需要滚动+多次截图。行数刻意压在 6 行。
- *    同时仍按可滚动实现——小屏手表（如 200dp 级）放不下时不会截断内容。
- *
- * 圆屏适配不需要新代码：整页复用 [LocalWatchMetrics] 的 `content` 分区，
- * 与设置/历史页同构。
- */
 @Composable
 fun DiagnosticsScreen(
     time: String,
@@ -92,7 +77,6 @@ fun DiagnosticsScreen(
     var copied by remember { mutableStateOf(false) }
     val rows = rememberDeviceRows()
 
-    // "已复制"是一次性反馈，自动回退，避免用户以为按钮卡在激活态
     LaunchedEffect(copied) {
         if (copied) {
             delay(1600)
@@ -102,7 +86,6 @@ fun DiagnosticsScreen(
 
     Box(modifier.fillMaxSize()) {
         RotaryScrollHandler(AppPage.DIAGNOSTICS, scroll)
-
         Column(
             modifier = Modifier.fillMaxSize(),
             horizontalAlignment = Alignment.CenterHorizontally,
@@ -123,9 +106,7 @@ fun DiagnosticsScreen(
                 },
                 center = { ClockText(time) },
             )
-
             Spacer(Modifier.height(scaled(layout.content.top - layout.header.bottom)))
-
             Column(
                 modifier = Modifier
                     .width(scaled(layout.content.maxWidth))
@@ -134,18 +115,15 @@ fun DiagnosticsScreen(
             ) {
                 PageTitle("诊断信息")
                 Spacer(Modifier.height(scaled(6f)))
-
                 Column(
                     modifier = Modifier
                         .weight(1f)
                         .fillMaxWidth()
-                        // onSizeChanged 在 verticalScroll 外侧才量到"可视高"（见 HistoryScreen）
                         .onSizeChanged { viewport = it }
                         .verticalScroll(scroll),
                 ) {
                     rows.forEach { (label, value) -> DiagRow(label, value) }
                 }
-
                 Spacer(Modifier.height(scaled(6f)))
                 CopyButton(
                     copied = copied,
@@ -156,10 +134,8 @@ fun DiagnosticsScreen(
                     },
                 )
             }
-
             Spacer(Modifier.weight(1f))
         }
-
         WatchScrollIndicator(scroll = scroll, viewportPx = viewport.height.toFloat())
     }
 }
@@ -167,7 +143,6 @@ fun DiagnosticsScreen(
 private fun List<Pair<String, String>>.toClipboardText(): String =
     joinToString(separator = "\n") { (k, v) -> "$k: $v" } + "\n"
 
-/** 诊断字段。刻意压在 6 行——一屏放得下，一张截图就能带走 */
 @Composable
 private fun rememberDeviceRows(): List<Pair<String, String>> {
     val density = LocalDensity.current
@@ -189,13 +164,6 @@ private fun rememberDeviceRows(): List<Pair<String, String>> {
     }
 }
 
-/**
- * 是否存在旋转编码器输入设备。
- *
- * 这是整页最有价值的一行：本机实测表明，**有旋转编码器 ≠ 事件会派发给第三方应用**
- * （小米手表 OS 能识别表冠，但 Compose 收不到事件，最后只能在 Activity 层接）。
- * 所以这一行给的是"硬件有没有"，配合 README 的已知问题说明，能快速定位同类反馈。
- */
 private fun hasRotaryEncoder(): Boolean =
     InputDevice.getDeviceIds().any { id ->
         InputDevice.getDevice(id)?.let { device ->
@@ -232,7 +200,6 @@ private fun DiagRow(label: String, value: String) {
     }
 }
 
-/** 带图标的复制按钮；复制后就地变为"已复制"，不弹 Toast（手表上会遮挡且一闪而过） */
 @Composable
 private fun CopyButton(copied: Boolean, onClick: () -> Unit) {
     val interaction = remember { MutableInteractionSource() }

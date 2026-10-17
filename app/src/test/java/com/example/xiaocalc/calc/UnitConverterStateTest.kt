@@ -4,14 +4,7 @@ import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
-/**
- * 换算页状态机的验证。
- *
- * 重点在**输入规则**：值是交给 [CalcEngine] 求值的，所以这里的职责只有两条——
- * 别让用户轻易敲出语法错误，以及别把明显的手滑（连按两个运算符）变成报错。
- */
 class UnitConverterStateTest {
-
     private val settings = CalcSettings(groupDigits = false)
 
     private fun state() = UnitConverterState()
@@ -32,13 +25,10 @@ class UnitConverterStateTest {
         }
     }
 
-    // ------------------------------------------------------------------ 默认
-
     @Test
     fun `默认是最常用的长度换算`() {
         val s = state()
         assertEquals(UnitCategory.LENGTH, s.category)
-        // 每类前两项即默认起算/目标单位，长度表首个是米、次个是英尺
         assertEquals("m", s.from.symbol)
         assertEquals("ft", s.to.symbol)
     }
@@ -54,8 +44,6 @@ class UnitConverterStateTest {
             )
         }
     }
-
-    // -------------------------------------------------------------- 输入规则
 
     @Test
     fun `前导零被替换而不是累积`() {
@@ -82,7 +70,6 @@ class UnitConverterStateTest {
         assertEquals("1.5", s.input)
         s.type(".")
         assertEquals("1.5", s.input)
-        // 但换一个数之后可以再打小数点
         s.type("+2.")
         assertEquals("1.5+2.", s.input)
     }
@@ -92,7 +79,6 @@ class UnitConverterStateTest {
         val s = state()
         s.type(".5")
         assertEquals(".5", s.input)
-        // 解析器接受 ".5"；默认换算是米→英尺，0.5 m = 1.640419947506562… ft
         assertEquals("1.640419947506562", s.convertedText(settings))
     }
 
@@ -102,7 +88,6 @@ class UnitConverterStateTest {
         s.type("-40")
         assertEquals("-40", s.input)
         s.selectCategory(UnitCategory.TEMPERATURE)
-        // −40 是摄氏与华氏的交点，换算后仍是 −40
         assertEquals("-40", s.convertedText(settings))
     }
 
@@ -111,7 +96,6 @@ class UnitConverterStateTest {
         val s = state()
         s.type("×")
         assertEquals("", s.input)
-        // 负号是允许的
         s.type("-")
         assertEquals("-", s.input)
     }
@@ -151,8 +135,6 @@ class UnitConverterStateTest {
         assertEquals("", s.input)
     }
 
-    // ------------------------------------------------------------ 单位与类别
-
     @Test
     fun `交换起算与目标单位`() {
         val s = state()
@@ -179,7 +161,6 @@ class UnitConverterStateTest {
         s.type("100")
         s.selectCategory(UnitCategory.TEMPERATURE)
         assertEquals("100", s.input)
-        // 100°C = 212°F
         assertEquals("212", s.convertedText(settings))
     }
 
@@ -201,16 +182,12 @@ class UnitConverterStateTest {
         assertEquals(4, s.toIndex)
     }
 
-    // ------------------------------------------------------------------ 换算
-
     @Test
     fun `换算结果按当前单位对给出`() {
         val s = state()
         s.type("1")
-        // 1 米 = 3.280839895013123… 英尺
         assertEquals("3.280839895013123", s.convertedText(settings))
-
-        s.selectTo(2) // 厘米
+        s.selectTo(2)
         assertEquals("100", s.convertedText(settings))
     }
 
@@ -218,7 +195,7 @@ class UnitConverterStateTest {
     fun `值是表达式时也能换算`() {
         val s = state()
         s.type("100+20")
-        s.selectTo(2) // 米 → 厘米
+        s.selectTo(2)
         assertEquals("12000", s.convertedText(settings))
     }
 

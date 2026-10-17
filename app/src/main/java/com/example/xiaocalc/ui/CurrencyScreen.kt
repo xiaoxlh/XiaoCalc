@@ -70,20 +70,6 @@ import kotlinx.coroutines.withContext
 
 private enum class CurrencyPicker { FROM, TO }
 
-/**
- * 货币换算页。
- *
- * ## 联网的三道闸
- *
- * 1. **默认关闭**：`CalcSettings.allowNetwork` 初值为 false，且不联网时应用照常可用
- *    （用上次缓存下来的汇率换算）。
- * 2. **显式授权**：点"更新"而尚未授权时，弹出说明面板，用户点"同意"才写入设置。
- *    这里刻意不用一个可以顺手划过的开关——联网是一次需要被看见的决定。
- * 3. **可撤销**：设置页里同一项可以关掉，货币页立刻回到未授权状态，
- *    但**已缓存的汇率保留**：撤销的是"联网"，不是"清空数据"。
- *
- * 请求由界面在 IO 线程发起，状态机只负责"能不能发"（见 [CurrencyState.beginRefresh]）。
- */
 @Composable
 fun CurrencyScreen(
     state: CurrencyState,
@@ -109,7 +95,6 @@ fun CurrencyScreen(
     val expressionScroll = rememberScrollState()
     val scope = rememberCoroutineScope()
 
-    // 请求在这里发起：状态机说"可以"，界面才去 IO。
     LaunchedEffect(refreshTick, settings.allowNetwork) {
         if (refreshTick == 0) return@LaunchedEffect
         if (!state.beginRefresh(settings.allowNetwork)) {
@@ -122,9 +107,6 @@ fun CurrencyScreen(
         state.applyResult(fetched, "没取到汇率，请检查网络")
     }
 
-    // 自动续期：已授权、且本地汇率不是今天的，进页面时补做一次完整更新。
-    // 判定按**日期**（见 CurrencyState.needsAutoRenew），因此同一天不会重复请求；
-    // 失败也不弹任何东西——用户没主动点更新，不该被错误消息打断。
     LaunchedEffect(Unit) {
         if (settings.allowNetwork && state.needsAutoRenew(LocalDate.now())) {
             refreshTick++
@@ -163,14 +145,6 @@ fun CurrencyScreen(
                 },
                 center = { ClockText(time) },
             )
-
-            // ---------------------------------------------------------- 显示区
-            // 只有**真正的错误**（算式有误、请求失败）才走 CalcDisplay 的 error 槽——
-            // 那里是红色粗体，用来提示"还没有汇率"、"正在获取"会让人以为出了问题。
-            // 这类中性状态改走结果槽，用正常的字色显示。
-            //
-            // 币种胶囊贴在各自那一行的最左端（与单位换算页同一套结构）：
-            // 起算币种对着输入数，目标币种对着结果数，位置本身就说明了归属。
             val converted = state.convertedText(settings)
             val errorText = state.inputError(settings)
                 ?: (state.status as? RateStatus.Failed)?.reason
@@ -212,22 +186,16 @@ fun CurrencyScreen(
                     )
                 },
             )
-
-            // ------------------------------------------------------------ 键盘
             Spacer(Modifier.height(scaled(layout.keypad.top - layout.display.bottom)))
             Keypad(
                 page = keypadPage,
                 rows = layout.keyRows,
                 hapticsEnabled = hapticsEnabled,
-                // `=` 在本页同样改作交换：结果实时可见，求值没有意义。
-                // 原先这一格按下去毫无反应，却又是整块键盘里最亮的那个键。
                 onKey = { if (it == CalcKey.Equals) state.swap() else state.onKey(it) },
                 angleUnit = settings.angleUnit,
                 keysOverride = if (keypadPage == KeypadPage.MAIN) MainKeypad else null,
                 iconOverrides = KEYPAD_ICON_OVERRIDES,
             )
-
-            // ---------------------------------------------------------- 操作行
             Spacer(Modifier.height(scaled(layout.actionRow.top - layout.keypad.bottom)))
             CurrencyActionBar(
                 zone = layout.actionRow,
@@ -236,11 +204,8 @@ fun CurrencyScreen(
                 onBackspace = state::backspace,
                 onRefresh = { refreshTick++ },
             )
-
             Spacer(Modifier.weight(1f))
         }
-
-        // ------------------------------------------------------------ 币种选择
         AnimatedVisibility(
             visible = pickerOpen,
             enter = fadeIn(Motion.enter(Motion.DURATION_SHORT3)),
@@ -259,8 +224,6 @@ fun CurrencyScreen(
                 scrollState = pickerScroll,
             )
         }
-
-        // ------------------------------------------------------------ 联网授权
         AnimatedVisibility(
             visible = consentOpen,
             enter = fadeIn(Motion.enter(Motion.DURATION_SHORT3)),
@@ -278,12 +241,6 @@ fun CurrencyScreen(
     }
 }
 
-/**
- * 中性状态提示。
- *
- * 这些都不是错误：没有汇率、正在请求、未授权但仍在用缓存。
- * 它们走结果槽而不是错误槽，以免用红色粗体吓人。
- */
 private fun hintText(state: CurrencyState): String = when (state.status) {
     RateStatus.NotAuthorized -> "未授权联网 · 在用缓存汇率"
     is RateStatus.Loading -> "正在获取…"
@@ -291,15 +248,6 @@ private fun hintText(state: CurrencyState): String = when (state.status) {
         if (state.table == null) "还没有汇率 · 点下方更新" else ""
 }
 
-/**
- * 联网授权面板。
- *
- * 文案把"做什么、发给谁、什么时候"三件事讲清楚，
- * 而不是一句"需要网络权限"——用户有权知道数据去了哪里。
- *
- * 声明为 internal 而不是 private：截图测试要能单独渲染它，
- * 否则这段最需要肉眼确认的文案只能靠"点出来"才能看到。
- */
 @Composable
 internal fun ConsentPanel(onDecline: () -> Unit, onAccept: () -> Unit) {
     Box(
@@ -424,7 +372,6 @@ private fun CurrencyActionBar(
                 heightDu = zone.height,
                 hapticsEnabled = hapticsEnabled,
                 onKey = { haptics(true); onRefresh() },
-                // 一个汉字要占满整格才看得清；箭头图形在小尺寸下反而更好认
                 icon = WatchVectorIcons.Refresh,
                 description = "更新汇率",
                 containerOverride = MaterialTheme.colorScheme.secondary,
@@ -434,11 +381,6 @@ private fun CurrencyActionBar(
     }
 }
 
-/**
- * 显示行左侧的币种胶囊。
- *
- * 与单位换算页的 [UnitChip] 同一套尺寸：两行等宽，右边的数字才能上下对齐。
- */
 @Composable
 private fun CurrencyChip(
     code: String,
@@ -458,5 +400,3 @@ private fun CurrencyChip(
         showChevron = true,
     )
 }
-
-

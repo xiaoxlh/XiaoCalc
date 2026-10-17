@@ -6,14 +6,7 @@ import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
-/**
- * 圆屏几何的纯数学回归。
- *
- * 这是本次重构的核心：**"内容是否落在表盘内"必须是一条可验证的不等式，
- * 而不是靠肉眼看截图调 padding**。
- */
 class DiscTest {
-
     @Test
     fun `圆心处弦长等于直径`() {
         assertEquals(Disc.DESIGN, Disc.chord(Disc.CENTER), 1e-3f)
@@ -36,17 +29,12 @@ class DiscTest {
 
     @Test
     fun `区间弦长取离圆心较远的一端`() {
-        // 区间 [80,300] 跨过圆心，|80-192|=112 比 |300-192|=108 更远，
-        // 因此最窄处出现在 y=80 一侧
         assertEquals(Disc.chord(80f), Disc.chordInBand(80f, 300f), 1e-3f)
-        // 区间完全在下半部，远端为 y=360
         assertEquals(Disc.chord(360f), Disc.chordInBand(300f, 360f), 1e-3f)
     }
 
     @Test
     fun `区间弦长是区间内处处可用的最窄宽度`() {
-        // chordInBand 的契约是"该区间内处处可用的宽度"，
-        // 因此它必须是区间内弦长的**下确界**：任何 y 处的弦长都不小于它。
         for (top in 0..340 step 20) {
             val bottom = (top + 40).coerceAtMost(384)
             val band = Disc.chordInBand(top.toFloat(), bottom.toFloat())
@@ -64,8 +52,6 @@ class DiscTest {
         assertEquals(Disc.RADIUS * 1.4142135f, Disc.inscribedSquare(), 1e-2f)
     }
 
-    // ------------------------------------------------------------------ 布局
-
     @Test
     fun `圆形屏每个分区的四角都在表盘内`() {
         val layout = WatchLayout.of(round = true)
@@ -74,7 +60,6 @@ class DiscTest {
         }
     }
 
-    /** 键盘逐行铺满：每一行的四角都必须在表盘内，否则宽键会切到表盘外 */
     @Test
     fun `圆形屏键盘每一行的四角都在表盘内`() {
         val layout = WatchLayout.of(round = true)
@@ -89,7 +74,6 @@ class DiscTest {
         }
     }
 
-    /** "尽量铺满"：每一行实际用掉的宽度应当接近该行可用的最窄弦长 */
     @Test
     fun `圆形屏键盘每一行都铺满可用宽度`() {
         val layout = WatchLayout.of(round = true)
@@ -104,7 +88,6 @@ class DiscTest {
                 "第 ${index + 1} 行宽度 ${row.maxWidth} 超过可用弦长 $available",
                 row.maxWidth <= available + 1e-3f,
             )
-            // 键宽由行宽等分而来，二者必须自洽
             val expected = row.columns * row.keyWidth + (row.columns - 1) * WatchLayout.KEY_GAP
             assertEquals(row.maxWidth, expected, 1e-3f)
         }
@@ -146,15 +129,12 @@ class DiscTest {
     @Test
     fun `方形屏分区不重叠且都在内容区内`() {
         val layout = WatchLayout.of(round = false)
-        // content 是"子页面"的替代布局，与计算器的 display/keypad 互斥，
-        // 因此只对计算器自身的分段做重叠校验
         val calculatorZones = listOf(
             "header" to layout.header,
             "display" to layout.display,
             "keypad" to layout.keypad,
             "actionRow" to layout.actionRow,
         ).sortedBy { it.second.top }
-
         calculatorZones.forEach { (name, zone) ->
             assertTrue("$name 超出内容区上界", zone.top >= 0f)
             assertTrue("$name 超出内容区下界", zone.bottom <= Disc.DESIGN)
@@ -166,16 +146,11 @@ class DiscTest {
                 a.second.bottom <= b.second.top + 1e-3f,
             )
         }
-
         assertTrue("content 与 header 重叠", layout.content.top >= layout.header.bottom)
         assertTrue("content 超出内容区下界", layout.content.bottom <= Disc.DESIGN)
         assertTrue("content 宽度超过可用宽度", layout.content.maxWidth <= Disc.DESIGN + 1e-3f)
     }
 
-    /**
-     * 回归护栏：`Modifier.size()` 会被父级约束收紧，顶栏高度小于图标命中区时，
-     * 圆形按钮会被压成椭圆、可点面积缩水（实测出现过 83×49 的椭圆主按钮）。
-     */
     @Test
     fun `顶栏高度足以容纳图标命中区`() {
         for (round in listOf(true, false)) {
@@ -187,7 +162,6 @@ class DiscTest {
         }
     }
 
-    /** 显示区的两行都必须容纳 MiSans 的 1.326em 行高，否则会裁掉逗号等下伸字形 */
     @Test
     fun `显示区高度足以容纳两行文字`() {
         val minResultFontDu = 20f
@@ -212,11 +186,6 @@ class DiscTest {
         }
     }
 
-    /**
-     * 回归护栏：旧实现把整块内容按短边铺满（相当于宽度 384du 的矩形），
-     * 圆屏上四角必然切出表盘——这正是旧版需要逐页写 `if (round) padding = 62f`
-     * 这类魔数内收的根因。此处固化"满宽必然出圆"这一结论。
-     */
     @Test
     fun `满宽矩形在圆形屏上必然切角`() {
         val halfWidth = Disc.DESIGN / 2f
@@ -224,21 +193,11 @@ class DiscTest {
         assertTrue("满宽内容区顶角应当落在表盘外", !topCornerInside)
     }
 
-    // ------------------------------------------------------------ 选择行权重
-    // ------------------------------------------------------ 单位 / 货币页
-
-    /**
-     * 选择胶囊搬进数字行之后，那条 44du 的"额外操作行"必须消失。
-     *
-     * 留着它的代价很实在：显示区会被顶到表盘上沿，那里弦长只有 264du，
-     * 16 位结果只能缩到很小才放得下。省下的高度分给显示区与键盘才是收益。
-     */
     @Test
     fun `单位页没有额外操作行且分区互不重叠`() {
         for (round in listOf(true, false)) {
             val layout = WatchLayout.units(round)
             assertTrue("round=$round 单位页不应再有额外行", layout.extraRow == null)
-
             val zones = listOf(
                 "header" to layout.header,
                 "display" to layout.display,
@@ -251,7 +210,6 @@ class DiscTest {
                     a.second.bottom <= b.second.top + 1e-3f,
                 )
             }
-            // 显示区不该离顶栏太远——中间留白说明有一行被白白空着
             assertTrue(
                 "round=$round 顶栏与显示区之间空了 ${layout.display.top - layout.header.bottom}du",
                 layout.display.top - layout.header.bottom <= 16f,
@@ -267,10 +225,6 @@ class DiscTest {
         }
     }
 
-    /**
-     * 显示区一分为二，每条行都要放得下一个胶囊；
-     * 胶囊之后剩下的宽度还必须够写 16 位数字。
-     */
     @Test
     fun `单位页每一行都放得下胶囊并留足数字宽度`() {
         for (round in listOf(true, false)) {
@@ -279,7 +233,6 @@ class DiscTest {
             assertTrue("round=$round 显示行只有 ${row}du", row >= 40f)
             val chip = row - WatchLayout.DISPLAY_CHIP_INSET
             assertTrue("round=$round 胶囊只有 ${chip}du 高", chip >= 30f)
-
             val numberWidth = layout.display.maxWidth - WatchLayout.DISPLAY_CHIP_WIDTH - WatchLayout.DISPLAY_CHIP_GAP
             assertTrue(
                 "round=$round 胶囊占完后数字只剩 ${numberWidth}du",
@@ -288,7 +241,6 @@ class DiscTest {
         }
     }
 
-    /** 把选择行还给键盘之后，键至少不比"带选择行"的方程页更小，显示区则明显更大 */
     @Test
     fun `单位页把选择行还给显示区与键盘`() {
         for (round in listOf(true, false)) {
@@ -305,10 +257,6 @@ class DiscTest {
         }
     }
 
-    /**
-     * 方程页仍有那条"额外操作行"（放 `^ ( ) =`），原先它不在 [zonesOf] 里，
-     * 等于无人看守：一旦越界就会在圆屏上切角或被上方顶栏压住。
-     */
     @Test
     fun `额外操作行落在表盘内且不与相邻分区重叠`() {
         for (round in listOf(true, false)) {
@@ -339,7 +287,6 @@ class DiscTest {
         }
     }
 
-    /** 以表盘圆心为原点，判断相对坐标是否在圆内 */
     private fun pointInsideDisc(dx: Float, y: Float): Boolean {
         val dy = y - Disc.CENTER
         return dx * dx + dy * dy <= Disc.RADIUS * Disc.RADIUS + 1e-3f

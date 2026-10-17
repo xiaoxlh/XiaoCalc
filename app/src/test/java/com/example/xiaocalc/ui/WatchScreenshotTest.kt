@@ -44,22 +44,7 @@ import com.example.xiaocalc.ui.components.PickerOverlay
 import org.junit.Rule
 import org.junit.Test
 
-/**
- * 无设备 UI 复核：在 JVM 上用 layoutlib 真实渲染 Compose，产出 PNG。
- *
- * 存在的意义：本项目的核心难点是"内容必须落进圆形表盘"，
- * 而这件事**只能靠看**最终确认——单元测试能证明几何不等式成立，
- * 但证明不了 Compose 实际测量出来的文本宽度、以及 `isScreenRound` 是否被正确识别。
- *
- * 运行：`./gradlew :app:recordPaparazziDebug`
- * 产物：`app/src/test/snapshots/`
- */
 class WatchScreenshotTest {
-
-    /**
-     * 圆形手表：与用户实机一致（480×480 @ 320dpi → 240dp 圆屏），
-     * 以 Paparazzi 自带的手表配置为基准。
-     */
     private val roundWatch = DeviceConfig.GALAXY_WATCH4_CLASSIC_LARGE.copy(
         screenWidth = 480,
         screenHeight = 480,
@@ -86,7 +71,6 @@ class WatchScreenshotTest {
         val state = CalculatorState(store, InMemoryHistoryStore(history)) { 1_700_000_000_000L }
         state.updateSettings { it.copy(angleUnit = angleUnit) }
         if (result != null) {
-            // 用真实按键序列产生结果，避免"测试里造假数据、真机上算不出来"
             for (c in result) {
                 when (c) {
                     in '0'..'9' -> state.onKey(CalcKey.Digit(c))
@@ -117,12 +101,6 @@ class WatchScreenshotTest {
         }
     }
 
-    // ------------------------------------------------------------------ 主题
-
-    /**
-     * 非默认主题：确认强调色真的贯穿到了 `=` 键与运算符键，
-     * 而结构色（页面胶囊的蓝）**保持不变**——两者分工不该被一起换掉。
-     */
     @Test
     fun calculator_theme_green() {
         snapshot("calculator_theme_green", theme = ThemeColor.GREEN) {
@@ -140,8 +118,6 @@ class WatchScreenshotTest {
             SettingsScreen(controller = state(), time = "10:24", onNavigate = {})
         }
     }
-
-    // ------------------------------------------------------------------ 计算器
 
     @Test
     fun calculator_idle() {
@@ -196,11 +172,8 @@ class WatchScreenshotTest {
         }
     }
 
-    // ------------------------------------------------------------------ 子页面
-
     @Test
     fun welcome_intro() {
-        // 关掉入场动效：否则首帧 alpha=0，快照只能拍到空白
         snapshot("welcome_intro") {
             CompositionLocalProvider(LocalEntranceAnimation provides false) {
                 WelcomeScreen(time = "10:24", onComplete = {})
@@ -250,8 +223,6 @@ class WatchScreenshotTest {
 
     @Test
     fun settings() {
-        // 刻意让一个开关处于选中态：只拍"全关"的话，选中样式（颜色、滑块位置）
-        // 就没被任何快照覆盖，改坏了也看不出来
         val controller = state()
         controller.updateSettings { it.copy(keepRoot = true) }
         snapshot("settings") {
@@ -259,9 +230,6 @@ class WatchScreenshotTest {
         }
     }
 
-    // ------------------------------------------------------------------ 单位换算
-
-    /** 换算页是纵向分段最多的页面（顶栏/显示区两行/键盘/操作行），最需要肉眼复核 */
     @Test
     fun units_length() {
         val converter = UnitConverterState()
@@ -277,7 +245,6 @@ class WatchScreenshotTest {
         }
     }
 
-    /** 温度是唯一的仿射换算（带偏移），单独拍一张 */
     @Test
     fun units_temperature() {
         val converter = UnitConverterState()
@@ -294,7 +261,6 @@ class WatchScreenshotTest {
         }
     }
 
-    /** 选择器面板：验证它完整落在圆内、四角不被裁掉 */
     @Test
     fun units_picker() {
         snapshot("units_picker") {
@@ -310,12 +276,6 @@ class WatchScreenshotTest {
         }
     }
 
-    /**
-     * 单位列表：标题右侧那颗「长度 ⌄」是钻进类别列表的入口。
-     *
-     * 标题行从单个 Text 改成了 Row，标题一长就会把胶囊挤出面板；
-     * 这张图守着那个改动的结果。
-     */
     @Test
     fun units_picker_units() {
         snapshot("units_picker_units") {
@@ -341,13 +301,10 @@ class WatchScreenshotTest {
         }
     }
 
-    // ------------------------------------------------------------------ 方程
-
     private fun equationState(text: String, mode: EquationMode = EquationMode.SINGLE): EquationState {
         val state = EquationState()
         state.selectMode(mode)
         if (mode == EquationMode.SYSTEM) {
-            // 二元模式是两个独立输入框，测试里按分号拆开填
             text.split(';').forEachIndexed { index, part -> state.setText(index, part) }
         } else {
             state.setText(0, text)
@@ -372,7 +329,6 @@ class WatchScreenshotTest {
 
     @Test
     fun equation_radical() {
-        // 精确根式是这一页的核心价值，必须单独拍一张确认它真的显示成 √2
         equationSnapshot("equation_radical", equationState("x^2-2x-1=0"))
     }
 
@@ -386,16 +342,12 @@ class WatchScreenshotTest {
         equationSnapshot("equation_system", equationState("x+y=3;2x-y=0", EquationMode.SYSTEM))
     }
 
-    // ------------------------------------------------------------------ 图像
-
     private fun graphState(vararg texts: String, angleUnit: AngleUnit = AngleUnit.DEG): GraphState {
         val state = GraphState()
         texts.forEachIndexed { index, text ->
             if (index > 0) state.addFunction()
             state.setExpression(text)
         }
-        // 纵轴自动贴合由页面里的 LaunchedEffect 完成，而快照渲染在那一刻之前，
-        // 所以这里手工走一遍同样的计算，否则金图里会是一块被裁掉大半的抛物线
         val samples = state.functions
             .filter { it.isDrawable }
             .flatMap { FunctionAnalysis.sample(it.expression, state.xMin, state.xMax, angleUnit) }
@@ -414,7 +366,6 @@ class WatchScreenshotTest {
         )
     }
 
-    /** 首次进入：一条函数都没有，抽屉自动展开 */
     @Test
     fun graph_editor() {
         graphSnapshot("graph_editor", graphState())
@@ -430,19 +381,11 @@ class WatchScreenshotTest {
         graphSnapshot("graph_cubic", graphState("x^3-3x"))
     }
 
-    /** 三条同屏：验证颜色按位置分配，且只标选中那条的关键点 */
     @Test
     fun graph_multi() {
         graphSnapshot("graph_multi", graphState("x^2-2", "0.5x+1", "-x^2+4"))
     }
 
-    /**
-     * 非多项式：验证数值路线画出来的曲线（零点与极值都靠二分求得）。
-     *
-     * 用弧度制：角度制下 `[-10,10]` 只有 10°，`sin(x°) ≈ x·π/180` 本就近似线性，
-     * 画出来接近一条直线——那是**正确**的（真实图形计算器同样如此），
-     * 只是不适合用来验证波形绘制。角度制的情形由范围行的 `deg` 标记提示。
-     */
     @Test
     fun graph_sine() {
         paparazzi.unsafeUpdateConfig(deviceConfig = roundWatch)
@@ -461,9 +404,6 @@ class WatchScreenshotTest {
         }
     }
 
-    // ------------------------------------------------------------------ 货币
-
-    /** 快照不联网：数据源固定返回 null，页面只会用到注入的缓存汇率 */
     private class OfflineRateSource : RateSource {
         override fun fetch(base: String, quotes: List<String>): RateTable? = null
     }
@@ -482,10 +422,6 @@ class WatchScreenshotTest {
         return state
     }
 
-        /**
-     * 小数位数滑杆。它挂在设置页较靠下的位置，整页快照拍不到，
-     * 因此单独拍一张——这是全应用唯一的连续输入控件，值得有自己的金标。
-     */
     @Test
     fun settings_decimals_slider() {
         snapshot("settings_decimals_slider") {
@@ -507,14 +443,7 @@ class WatchScreenshotTest {
             }
         }
     }
-    // ------------------------------------------------------------------ 工具面板
 
-    /**
-     * 工具面板：四个大图块替代原先六项的小字菜单。
-     *
-     * 关掉错峰入场再拍：动画的 alpha 在渲染时刻还是 0，开着会拍到一块空面板。
-     * 这里要守住的是**排版**——四格是否落在圆内、文字是否被截断。
-     */
     @Test
     fun tools_panel() {
         snapshot("tools_panel") {
@@ -548,7 +477,6 @@ private fun currencySnapshot(name: String, state: CurrencyState) = snapshot(name
         currencySnapshot("currency_empty", currencyState(withCache = false))
     }
 
-    /** 授权面板：文案必须完整可读，不能被圆形屏幕裁掉 */
     @Test
     fun currency_consent() {
         snapshot("currency_consent") {
@@ -556,15 +484,6 @@ private fun currencySnapshot(name: String, state: CurrencyState) = snapshot(name
         }
     }
 
-    // ------------------------------------------------------------------ 动效
-
-    /**
-     * 录制键盘翻页动画（AnimatedContent：位移 + 淡入淡出 + 缩放）。
-     *
-     * 静帧截图只能证明"布局对"，证明不了"动效真的在跑"——所以这里用 Paparazzi 的
-     * gif 模式把 0–420ms 逐帧录下来。产物是 APNG；由 `tools/extract_animation_frames.py`
-     * 抽帧拼成一张胶片图，便于直接肉眼核对中间帧。
-     */
     @Test
     fun animate_keypad_page_switch() {
         val controller = state()
@@ -572,7 +491,6 @@ private fun currencySnapshot(name: String, state: CurrencyState) = snapshot(name
             setContent {
                 XiaoCalcTheme {
                     WatchFrame(modifier = Modifier.fillMaxSize()) {
-                        // 首帧之后再切页，才能让 AnimatedContent 真正从主键盘过渡到函数页
                         LaunchedEffect(Unit) { controller.onKey(CalcKey.PageFunctions) }
                         CalculatorScreen(controller = controller, time = "10:24", onNavigate = {})
                     }

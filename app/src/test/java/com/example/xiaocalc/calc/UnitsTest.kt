@@ -7,18 +7,7 @@ import java.math.BigDecimal
 import java.math.MathContext
 import java.math.RoundingMode
 
-/**
- * 单位换算表的验证。
- *
- * 分三层：
- *  1. **结构不变量**——每类都有且只有一个基准单位、因子为正、符号不重复。
- *     这类断言能在有人往表里加单位时立刻拦住笔误。
- *  2. **已知换算值**——挑有精确定义或公认数值的换关系逐条比对。
- *  3. **往返一致性**——任意两个单位互转再转回来必须还原。
- *     这条覆盖面最广：它不依赖我是否记得某个具体数值，只依赖换算逻辑自洽。
- */
 class UnitsTest {
-
     private fun of(s: String) = BigDecimal(s)
 
     private fun sig(v: BigDecimal, n: Int = 25): String =
@@ -29,8 +18,6 @@ class UnitsTest {
 
     private fun convert(value: String, category: UnitCategory, from: String, to: String): BigDecimal =
         Units.convert(of(value), unit(category, from), unit(category, to))
-
-    // ------------------------------------------------------- 1. 结构不变量
 
     @Test
     fun `每个类别都有且只有一个基准单位`() {
@@ -60,13 +47,6 @@ class UnitsTest {
         }
     }
 
-    /**
-     * 选择胶囊上**只画符号**（中文名移到选择器与读屏描述里）。
-     *
-     * 于是符号本身必须真的"国际通用"：亩/斤/两 原先的符号就是汉字，
-     * 在胶囊上等于把中文名又写了一遍，换符号这件事也就没做。
-     * 长度上限则来自排版：超过五个字符的符号会把最窄的那一格挤出去。
-     */
     @Test
     fun `单位符号不含汉字且足够短`() {
         for ((category, list) in Units.catalog) {
@@ -90,15 +70,12 @@ class UnitsTest {
         assertEquals(UnitCategory.entries.size, Units.catalog.size)
     }
 
-    // -------------------------------------------------------- 2. 已知换算值
-
     @Test
     fun `长度`() {
         val c = UnitCategory.LENGTH
         assertEquals("100", sig(convert("1", c, "m", "cm")))
         assertEquals("1000", sig(convert("1", c, "m", "mm")))
         assertEquals("1000", sig(convert("1", c, "km", "m")))
-        // 1 in = 2.54 cm，1 ft = 12 in，1 mi = 1760 yd，全部是精确定义
         assertEquals("2.54", sig(convert("1", c, "in", "cm")))
         assertEquals("12", sig(convert("1", c, "ft", "in")))
         assertEquals("1760", sig(convert("1", c, "mi", "yd")))
@@ -109,17 +86,13 @@ class UnitsTest {
     @Test
     fun `温度是仿射换算而非简单倍率`() {
         val t = UnitCategory.TEMPERATURE
-        // 水的冰点与沸点
         assertEquals("32", sig(convert("0", t, "°C", "°F")))
         assertEquals("212", sig(convert("100", t, "°C", "°F")))
         assertEquals("273.15", sig(convert("0", t, "°C", "K")))
-        // −40 是两个刻度的交点，也是检验偏移是否写反的最佳用例
         assertEquals("-40", sig(convert("-40", t, "°C", "°F")))
         assertEquals("-40", sig(convert("-40", t, "°F", "°C")))
-        // 绝对零度
         assertEquals("-273.15", sig(convert("0", t, "K", "°C")))
         assertEquals("-459.67", sig(convert("0", t, "K", "°F")))
-        // 100°F = (100−32)×5/9 = 37.777…°C
         assertEquals("37.77777777777777777777778", sig(convert("100", t, "°F", "°C")))
     }
 
@@ -129,9 +102,7 @@ class UnitsTest {
         assertEquals("1000", sig(convert("1", c, "kg", "g")))
         assertEquals("16", sig(convert("1", c, "lb", "oz")))
         assertEquals("500", sig(convert("1", c, "jin", "g")))
-        // 1 斤 = 500 g，故 1 kg = 2 斤
         assertEquals("2", sig(convert("1", c, "kg", "jin")))
-        // 1 lb 的精确定义值 0.45359237 kg
         assertEquals("0.45359237", sig(convert("1", c, "lb", "kg")))
     }
 
@@ -139,7 +110,6 @@ class UnitsTest {
     fun `速度`() {
         val c = UnitCategory.SPEED
         assertEquals("3.6", sig(convert("1", c, "m/s", "km/h")))
-        // 1 节 = 1 海里/小时 = 1.852 km/h，精确
         assertEquals("1.852", sig(convert("1", c, "kn", "km/h")))
         assertEquals("0.3048", sig(convert("1", c, "ft/s", "m/s")))
     }
@@ -155,9 +125,7 @@ class UnitsTest {
     @Test
     fun `角度与弧度互换`() {
         val c = UnitCategory.ANGLE
-        // 1 rad = 180/π°，与独立算出的商比对——顺带验证表里的弧度因子确实是 180/π
         assertEquals(sig(Dec.div(of("180"), Dec.PI), 25), sig(convert("1", c, "rad", "°")))
-        // 180° = π rad，直接与 Dec.PI 比对（π 本身是现算的，这是条独立验证）
         assertEquals(sig(Dec.PI, 25), sig(convert("180", c, "°", "rad")))
         assertEquals("0.9", sig(convert("1", c, "grad", "°")))
         assertEquals("60", sig(convert("1", c, "°", "′")))
@@ -169,8 +137,6 @@ class UnitsTest {
         assertEquals("101325", sig(convert("1", UnitCategory.PRESSURE, "atm", "Pa")))
         assertEquals("100000", sig(convert("1", UnitCategory.PRESSURE, "bar", "Pa")))
     }
-
-    // ------------------------------------------------------- 3. 往返一致性
 
     @Test
     fun `任意两单位互转后能还原`() {
@@ -217,10 +183,8 @@ class UnitsTest {
 
     @Test
     fun `零值在温度里不等于零度`() {
-        // 0°C 换算成 °F 必须得到 32，而不是 0——这是仿射换算最容易出错的地方
         val t = UnitCategory.TEMPERATURE
         assertTrue(Units.convert(BigDecimal.ZERO, unit(t, "°C"), unit(t, "°F")).compareTo(BigDecimal.ZERO) != 0)
-        // 而非温度类别里 0 换算后仍是 0
         assertEquals(
             "0",
             sig(Units.convert(BigDecimal.ZERO, unit(UnitCategory.LENGTH, "m"), unit(UnitCategory.LENGTH, "ft"))),

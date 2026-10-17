@@ -6,18 +6,7 @@ import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
-/**
- * 输入状态机回归。
- *
- * 这里覆盖的是旧版 `CalculatorController.input()` 中一批**实际存在的缺陷**：
- *  - 前导 0 会叠加成 "05"；
- *  - 连续按运算符被静默忽略（没有反馈）；
- *  - 求值后用显示串（含千分位逗号 / 符号）续算；
- *  - 出错后把 "错误" 当成有效结果继续运算；
- *  - 历史只存在内存里。
- */
 class CalculatorStateTest {
-
     private val settingsStore = InMemorySettingsStore()
     private val historyStore = InMemoryHistoryStore()
     private var clock = 1_000L
@@ -46,8 +35,6 @@ class CalculatorStateTest {
         }
     }
 
-    // ------------------------------------------------------------------ 输入规则
-
     @Test
     fun `前导零被替换而不是叠加`() {
         val s = state()
@@ -60,7 +47,6 @@ class CalculatorStateTest {
         val s = state()
         s.type("1..5")
         assertEquals("1.5", s.expression)
-
         val t = state()
         t.type(".5")
         assertEquals("0.5", t.expression)
@@ -98,11 +84,9 @@ class CalculatorStateTest {
         val s = state()
         s.onKey(CalcKey.RParen)
         assertEquals("", s.expression)
-
         s.type("(2+")
         s.onKey(CalcKey.RParen)
         assertEquals("(2+", s.expression)
-
         s.type("3)")
         assertEquals("(2+3)", s.expression)
     }
@@ -123,8 +107,6 @@ class CalculatorStateTest {
         assertTrue(s.expression.length <= CalcEngine.MAX_LENGTH)
     }
 
-    // ------------------------------------------------------------------ 求值
-
     @Test
     fun `基本求值`() {
         val s = state()
@@ -141,7 +123,6 @@ class CalculatorStateTest {
         s.type("2+3")
         s.onKey(CalcKey.Equals)
         s.onKey(CalcKey.Times)
-        // 结果数值被回填为一个新的操作数，并接着插入按下的运算符
         assertEquals("5×", s.expression)
         s.type("4")
         s.onKey(CalcKey.Equals)
@@ -154,7 +135,6 @@ class CalculatorStateTest {
         s.type("1234567+0")
         s.onKey(CalcKey.Equals)
         assertEquals("1,234,567", s.resultText)
-
         s.onKey(CalcKey.Plus)
         s.type("1")
         s.onKey(CalcKey.Equals)
@@ -195,8 +175,6 @@ class CalculatorStateTest {
         s.type("2×π")
         s.onKey(CalcKey.Equals)
         assertEquals("2π", s.resultText)
-
-        // 旧实现会把 "2π" 原样塞回表达式（不可解析）；这里回落到数值
         s.onKey(CalcKey.Divide)
         s.type("2")
         s.onKey(CalcKey.Equals)
@@ -220,11 +198,8 @@ class CalculatorStateTest {
         s.onKey(CalcKey.Fn("sin"))
         s.type("π÷2")
         s.onKey(CalcKey.Equals)
-        // 缺省自动补右括号，因此不需要手输 ")"
         assertEquals("1", s.resultText)
     }
-
-    // ------------------------------------------------------------------ 错误
 
     @Test
     fun `除以零报错且不写入结果`() {
@@ -242,7 +217,6 @@ class CalculatorStateTest {
         s.type("5÷0")
         s.onKey(CalcKey.Equals)
         assertNotNull(s.error)
-
         s.onKey(CalcKey.Backspace)
         assertEquals("5÷", s.expression)
         s.type("2")
@@ -260,8 +234,6 @@ class CalculatorStateTest {
         assertNull(s.error)
     }
 
-    // ------------------------------------------------------------------ 历史
-
     @Test
     fun `历史结构化并持久化`() {
         val s = state()
@@ -269,12 +241,9 @@ class CalculatorStateTest {
         s.onKey(CalcKey.Equals)
         s.type("2×3")
         s.onKey(CalcKey.Equals)
-
         assertEquals(2, s.history.size)
         assertEquals("2×3", s.history[0].expression)
         assertEquals("6", s.history[0].result)
-
-        // 用同一份存储重建状态：历史应当恢复（旧实现是纯内存，必丢）
         val restored = CalculatorState(settingsStore, historyStore) { clock++ }
         assertEquals(2, restored.history.size)
         assertEquals("1+1", restored.history[1].expression)
@@ -301,14 +270,11 @@ class CalculatorStateTest {
         s.type("3+3")
         s.onKey(CalcKey.Equals)
         assertEquals(3, s.history.size)
-
         val middle = s.history[1]
         s.removeHistory(middle)
-
         assertEquals(2, s.history.size)
         assertEquals("3+3", s.history[0].expression)
         assertEquals("1+1", s.history[1].expression)
-        // 必须落盘，否则重建状态后删掉的那条会"复活"
         assertEquals(2, historyStore.loadEntries().size)
         assertTrue(historyStore.loadEntries().none { it == middle })
     }
@@ -332,8 +298,6 @@ class CalculatorStateTest {
         assertTrue(s.history.isEmpty())
         assertTrue(historyStore.loadEntries().isEmpty())
     }
-
-    // ------------------------------------------------------------------ 设置
 
     @Test
     fun `设置变更会持久化`() {
@@ -369,7 +333,6 @@ class CalculatorStateTest {
         val s = state()
         s.onKey(CalcKey.PageFunctions)
         s.onKey(CalcKey.Fn("sin"))
-        // 插入了 "sin("，同时回到数字键盘等待输入参数
         assertEquals("sin(", s.expression)
         assertEquals(KeypadPage.MAIN, s.page)
     }
@@ -381,8 +344,6 @@ class CalculatorStateTest {
         s.onKey(CalcKey.AngleUnit)
         assertEquals(AngleUnit.RAD, s.settings.angleUnit)
         assertEquals(KeypadPage.FUNCTIONS, s.page)
-
-        // 而插入类按键（如 π）会回到主键盘
         s.onKey(CalcKey.Pi)
         assertEquals("π", s.expression)
         assertEquals(KeypadPage.MAIN, s.page)
@@ -398,8 +359,6 @@ class CalculatorStateTest {
     @Test
     fun `键盘布局完整性`() {
         assertEquals(16, MainKeypad.size)
-        // 函数页删掉 `x²` 后空出一格，由 `log` 补上，正好铺满 4×4。
-        // 这里断言的是"不超过 4×4 的格位"，多出来的键会被静默丢弃、根本渲染不出来。
         assertEquals(16, FunctionKeypad.size)
         assertTrue("函数页不能超过 4×4 的格位", FunctionKeypad.size <= 16)
         assertTrue("`x²` 应当已被删除（与 ^2 等价）", FunctionKeypad.none { it.label == "x²" })
@@ -410,21 +369,15 @@ class CalculatorStateTest {
     @Test
     fun `角度单位只在用到三角函数时显示`() {
         val s = state()
-        // 普通算式旁边挂一个 "deg" 纯属噪声
         s.type("2+3")
         assertEquals("2+3", s.displayExpression)
-
         val trig = state()
         trig.updateSettings { it.copy(angleUnit = AngleUnit.DEG) }
         trig.onKey(CalcKey.Fn("sin"))
         trig.type("30")
         assertEquals("deg sin(30", trig.displayExpression)
-
-        // 切到弧度制，标记随之改变
         trig.updateSettings { it.copy(angleUnit = AngleUnit.RAD) }
         assertEquals("rad sin(30", trig.displayExpression)
-
-        // ln 不受角度制影响，因此不加标记
         val log = state()
         log.updateSettings { it.copy(angleUnit = AngleUnit.DEG) }
         log.onKey(CalcKey.Ln)
@@ -433,7 +386,6 @@ class CalculatorStateTest {
     }
 }
 
-/** 复制一份状态用于断言中间态 */
 private fun CalculatorState.clearAll() {
     onKey(CalcKey.Clear)
 }
