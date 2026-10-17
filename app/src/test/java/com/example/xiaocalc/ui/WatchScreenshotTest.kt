@@ -26,6 +26,7 @@ import com.example.xiaocalc.calc.CalculatorState
 import com.example.xiaocalc.calc.CurrencyState
 import com.example.xiaocalc.calc.EquationMode
 import com.example.xiaocalc.calc.EquationState
+import com.example.xiaocalc.calc.FunctionAnalysis
 import com.example.xiaocalc.calc.GraphState
 import com.example.xiaocalc.calc.HistoryEntry
 import com.example.xiaocalc.calc.InMemoryHistoryStore
@@ -393,6 +394,13 @@ class WatchScreenshotTest {
             if (index > 0) state.addFunction()
             state.setExpression(text)
         }
+        // 纵轴自动贴合由页面里的 LaunchedEffect 完成，而快照渲染在那一刻之前，
+        // 所以这里手工走一遍同样的计算，否则金图里会是一块被裁掉大半的抛物线
+        val samples = state.functions
+            .filter { it.isDrawable }
+            .flatMap { FunctionAnalysis.sample(it.expression, state.xMin, state.xMax) }
+        val range = FunctionAnalysis.viewRange(samples)
+        state.fitY(range.first, range.second)
         return state
     }
 

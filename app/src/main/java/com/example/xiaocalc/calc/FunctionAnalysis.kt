@@ -104,6 +104,29 @@ object FunctionAnalysis {
 
     const val VARIABLE = "x"
 
+    /**
+     * 一组采样点共用的纵轴范围：取 |y| 的第 98 百分位作为半幅，并保证包含 0。
+     *
+     * 用最大最小值会在 `1÷x` 这类函数上失控——极点附近单个采样就能把范围拉到 1e30。
+     * 多条曲线共用一套纵轴，否则"谁高谁低"这种比较就失去意义。
+     *
+     * **不要**再给半幅加"至少等于横轴跨度"的下限：那是我加错过的一条约束。
+     * 它会让 `sin(x)` 在角度制下的 ±0.17 被硬撑到 ±20，整条曲线压成一条直线。
+     * 当时写的理由是"否则 x² 会被压平"，但 x² 的纵轴本来就远大于横轴，根本用不到这条下限。
+     */
+    fun viewRange(samples: List<Sample>): Pair<BigDecimal, BigDecimal> {
+        val magnitudes = samples.mapNotNull { it.y?.abs() }.sorted()
+        if (magnitudes.isEmpty()) return BigDecimal("-1") to BigDecimal("1")
+
+        val index = ((magnitudes.size - 1) * 0.98).toInt().coerceIn(0, magnitudes.size - 1)
+        // 留 10% 余量，让极值点不至于正好贴在画布边缘
+        var half = Dec.mul(magnitudes[index], PADDING)
+        if (half.signum() == 0) half = BigDecimal.ONE
+        return half.negate() to half
+    }
+
+    private val PADDING: BigDecimal = BigDecimal("1.1")
+
     // ------------------------------------------------------------------ 采样
 
     fun sample(

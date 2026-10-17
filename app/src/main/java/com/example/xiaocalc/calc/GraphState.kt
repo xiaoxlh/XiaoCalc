@@ -50,11 +50,24 @@ class GraphState {
     var xMax: BigDecimal by mutableStateOf(BigDecimal("10"))
         private set
 
+    /**
+     * 纵轴范围。
+     *
+     * 初版没有这两个字段：纵轴范围是每次绘制时按采样点的第 98 百分位现算的，
+     * 于是"坐标系"只有横轴能变——拖动只改宽度，纵轴永远自动贴合数据，
+     * 一放大就会被重新夹回去。能拖能缩的坐标系必须让两轴的视野都是**状态**。
+     */
+    var yMin: BigDecimal by mutableStateOf(BigDecimal("-10"))
+        private set
+    var yMax: BigDecimal by mutableStateOf(BigDecimal("10"))
+        private set
+
     /** 当前选中的关键点下标；由页面在关键点数量变化时收敛 */
     var selected: Int by mutableStateOf(0)
         private set
 
     val span: BigDecimal get() = Dec.sub(xMax, xMin)
+    val ySpan: BigDecimal get() = Dec.sub(yMax, yMin)
 
     /** 当前正在编辑的解析式 */
     val input: String get() = functions.getOrNull(editing)?.expression.orEmpty()
@@ -151,29 +164,81 @@ class GraphState {
     // ------------------------------------------------------------------ 视图
 
     /**
-     * 以视图中心为锚点缩放。
+     * 平移视野。
      *
-     * @param factor 1 表示放大一倍（看到的范围减半），2 表示缩小一倍
+     * 参数是**占视野的比例**而不是像素：状态层不该知道屏幕密度，
+     * 而"拖过半个屏"在任何设备上都该走半个视野。手指在哪个方向划过半个屏，
+     * 视野的反方向就露出半个视野——这也是所有地图/坐标系的手感。
+     *
+     * @param xFraction 水平拖拽占视野宽度的比例（正 = 手指向右）
+     * @param yFraction 垂直拖拽占视野高度的比例（正 = 手指向下）
+     */
+    fun panBy(xFraction: Float, yFraction: Float) {
+        if (xFraction == 0f && yFraction == 0f) return
+        if (xFraction.isNaN() || yFraction.isNaN()) return
+        // 手指右移 ⇒ 同一个数据点要出现在更右边 ⇒ 视野左移
+        val dx = Dec.mul(span, fraction(xFraction))
+        // 手指下移 ⇒ 同一个数据点要出现在更下方 ⇒ 视野上移
+        val dy = Dec.mul(ySpan, fraction(yFraction))
+        xMin = Dec.sub(xMin, dx)
+        xMax = Dec.sub(xMax, dx)
+        yMin = Dec.add(yMin, dy)
+        yMax = Dec.add(yMax, dy)
+        selected = 0
+    }
+
+    /**
+     * 以视野里的某一点为锚点缩放。
+     *
+     * @param factor      大于 1 放大（看到的范围变小）
+     * @param xFraction   锚点占视野宽度的比例，0.5 即正中
+     * @param yFraction   锚点占视野高度的比例
+     */
+    fun zoomAt(factor: Float, xFraction: Float = 0.5f, yFraction: Float = 0.5f) {
+        if (!factor.isFinite() || factor <= 0f || factor == 1f) return
+        // 两轴按原比例一起缩，否则图形会被拉扁——坐标系里"圆看起来是圆的"是底线。
+        // 比例必须在改写 xMin/xMax **之前**取出来：span 是计算属性，
+        // 改完就被换成新的跨度了（这里踩过一次，缩放会把纵轴放大成两倍）
+        val ratio = Dec.div(ySpan, span)
+        val next = Dec.mul(span, fraction(1f / factor)).max(MIN_SPAN).min(MAX_SPAN)
+        val ax = Dec.add(xMin, Dec.mul(span, fraction(xFraction)))
+        val ay = Dec.add(yMin, Dec.mul(ySpan, fraction(yFraction)))
+        xMin = Dec.sub(ax, Dec.mul(next, fraction(xFraction)))
+        xMax = Dec.add(xMin, next)
+        val nextY = Dec.mul(next, ratio)
+        yMin = Dec.sub(ay, Dec.mul(nextY, fraction(yFraction)))
+        yMax = Dec.add(yMin, nextY)
+        selected = 0
+    }
+
+    /**
+     * 以视图中心为锚点缩放（工具行里的 ± 按钮）。
+     *
+     * @param factor 正数放大，负数缩小；绝对值是倍数
      */
     fun zoom(factor: Int) {
-        if (factor <= 1 && factor >= -1) return
-        val center = Dec.div(Dec.add(xMin, xMax), Dec.of(2))
-        val halfSpan = Dec.div(span, Dec.of(2))
-        val nextHalf = if (factor > 0) {
-            Dec.div(halfSpan, Dec.of(factor))
-        } else {
-            Dec.mul(halfSpan, Dec.of(-factor))
-        }
-        // 防止缩放走到极端后画面上什么都看不到
-        val clamped = nextHalf.max(MIN_HALF_SPAN).min(MAX_HALF_SPAN)
-        xMin = Dec.sub(center, clamped)
-        xMax = Dec.add(center, clamped)
+        if (factor == 0 || factor == 1 || factor == -1) return
+        zoomAt(if (factor > 0) factor.toFloat() else 1f / (-factor).toFloat())
+    }
+
+    /**
+     * 按数据收紧纵轴。
+     *
+     * 横轴留在 `[-10, 10]`（一个可预期的默认窗口），纵轴跟着数据走：
+     * `x^2` 与 `sin(x)` 的纵向量级差三个数量级，共用一个默认值必然有一个看不清。
+     */
+    fun fitY(low: BigDecimal, high: BigDecimal) {
+        if (low >= high) return
+        yMin = low
+        yMax = high
         selected = 0
     }
 
     fun resetView() {
         xMin = BigDecimal("-10")
         xMax = BigDecimal("10")
+        yMin = BigDecimal("-10")
+        yMax = BigDecimal("10")
         selected = 0
     }
 
@@ -196,12 +261,16 @@ class GraphState {
      */
     fun clampSelection(count: Int): Int = selected.coerceIn(0, (count - 1).coerceAtLeast(0))
 
+    /** 比例 → 高精度小数。50 位工作精度下，float 的十进制展开足以表达一次拖拽 */
+    private fun fraction(value: Float): BigDecimal =
+        if (!value.isFinite()) Dec.ZERO else BigDecimal.valueOf(value.toDouble())
+
     companion object {
         /** 同时绘制的函数条数上限：再多颜色就分不开了 */
         const val MAX_FUNCTIONS = 9
 
-        /** 最小/最大半跨度：再窄或再宽都已经没有绘图意义 */
-        private val MIN_HALF_SPAN: BigDecimal = BigDecimal("0.001")
-        private val MAX_HALF_SPAN: BigDecimal = BigDecimal("1000000")
+        /** 最小/最大跨度：再窄或再宽都已经没有绘图意义，且能挡住浮点误差累积 */
+        private val MIN_SPAN: BigDecimal = BigDecimal("0.002")
+        private val MAX_SPAN: BigDecimal = BigDecimal("2000000")
     }
 }

@@ -14,12 +14,16 @@ class GraphStateTest {
 
     private fun state() = GraphState()
 
+    /** 数值相等即可：BigDecimal 的 scale 会随运算路径变化，`20` 与 `20.00` 是同一个值 */
+    private fun assertDec(expected: String, actual: java.math.BigDecimal) =
+        assertEquals(expected, actual.stripTrailingZeros().toPlainString())
+
     @Test
     fun `默认范围是正负十`() {
         val s = state()
-        assertEquals("-10", s.xMin.toPlainString())
-        assertEquals("10", s.xMax.toPlainString())
-        assertEquals("20", s.span.toPlainString())
+        assertDec("-10", s.xMin)
+        assertDec("10", s.xMax)
+        assertDec("20", s.span)
     }
 
     @Test
@@ -27,16 +31,16 @@ class GraphStateTest {
         val s = state()
         s.zoom(2)
         // 中心仍是 0，跨度减半
-        assertEquals("-5", s.xMin.toPlainString())
-        assertEquals("5", s.xMax.toPlainString())
+        assertDec("-5", s.xMin)
+        assertDec("5", s.xMax)
     }
 
     @Test
     fun `缩小以视图中心为锚点`() {
         val s = state()
         s.zoom(-2)
-        assertEquals("-20", s.xMin.toPlainString())
-        assertEquals("20", s.xMax.toPlainString())
+        assertDec("-20", s.xMin)
+        assertDec("20", s.xMax)
     }
 
     @Test
@@ -73,8 +77,66 @@ class GraphStateTest {
         val s = state()
         s.zoom(2)
         s.resetView()
-        assertEquals("-10", s.xMin.toPlainString())
-        assertEquals("10", s.xMax.toPlainString())
+        assertDec("-10", s.xMin)
+        assertDec("10", s.xMax)
+        assertDec("-10", s.yMin)
+        assertDec("10", s.yMax)
+    }
+
+    // ------------------------------------------------------------ 拖与缩
+
+    @Test
+    fun `平移按视野比例移动两轴`() {
+        val s = state()
+        // 向右拖半个屏 ⇒ 视野左移 10（跨度 20 的一半）
+        s.panBy(0.5f, 0f)
+        assertDec("-20", s.xMin)
+        assertDec("0", s.xMax)
+        // 向下拖四分之一屏 ⇒ 视野上移 5
+        s.panBy(0f, 0.25f)
+        assertDec("-5", s.yMin)
+        assertDec("15", s.yMax)
+    }
+
+    @Test
+    fun `平移不改变跨度`() {
+        val s = state()
+        s.panBy(-0.3f, 0.7f)
+        assertDec("20", s.span)
+        assertDec("20", s.ySpan)
+    }
+
+    @Test
+    fun `缩放同时作用于两轴并保持比例`() {
+        val s = state()
+        s.fitY(java.math.BigDecimal("-2"), java.math.BigDecimal("2"))
+        val ratio = s.ySpan.divide(s.span, Dec.MC)
+        s.zoom(2)
+        assertDec("10", s.span)
+        assertEquals("两轴比例不该被缩放改掉", 0, ratio.compareTo(s.ySpan.divide(s.span, Dec.MC)))
+    }
+
+    @Test
+    fun `以锚点缩放时锚点坐标不动`() {
+        val s = state()
+        // 锚点取右上角（x 的 1.0 = xMax，y 的 0.0 = yMin）
+        s.zoomAt(2f, 1f, 0f)
+        assertDec("0", s.xMin)
+        assertDec("10", s.xMax)
+        assertDec("-10", s.yMin)
+        assertDec("0", s.yMax)
+    }
+
+    @Test
+    fun `fitY 接受数据范围并拒绝倒置区间`() {
+        val s = state()
+        s.fitY(java.math.BigDecimal("-3"), java.math.BigDecimal("7"))
+        assertDec("-3", s.yMin)
+        assertDec("7", s.yMax)
+        // 倒置区间直接忽略，不该把视野翻过来
+        s.fitY(java.math.BigDecimal("7"), java.math.BigDecimal("-3"))
+        assertDec("7", s.yMax)
+        assertDec("-3", s.yMin)
     }
 
     @Test

@@ -5,6 +5,7 @@ import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.detectTransformGestures
 import androidx.compose.foundation.gestures.detectVerticalDragGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -46,12 +47,15 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.graphics.drawscope.clipRect
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.drawText
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.text.rememberTextMeasurer
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import com.example.xiaocalc.adaptive.Disc
@@ -173,6 +177,19 @@ fun GraphScreen(
     // 在**读取时**把下标收敛到有效范围，而不是用副作用去改写状态
     val selectedIndex = state.clampSelection(points.size)
 
+    // 纵轴自动贴合数据：只在"哪几行能画"发生变化时做。
+    // 每敲一个字符都重算是错的——输入 x^2-2 的过程中纵轴会连跳五次；
+    // 而回到本页时再算一次也是错的，那会把用户刚才拖出来的视野抹掉。
+    val fittedY = FunctionAnalysis.viewRange(analyses.flatMap { it.samples })
+    val fitKey = curves.map { it.index }
+    var lastFitKey by remember { mutableStateOf(fitKey) }
+    LaunchedEffect(fitKey) {
+        if (lastFitKey != fitKey) {
+            lastFitKey = fitKey
+            if (fitKey.isNotEmpty()) state.fitY(fittedY.first, fittedY.second)
+        }
+    }
+
     RotaryHandler(AppPage.GRAPH) { pixels ->
         haptics(false)
         if (!sheetOpen) {
@@ -201,6 +218,30 @@ fun GraphScreen(
                 selected = selectedIndex,
                 xMin = state.xMin,
                 xMax = state.xMax,
+                yMin = state.yMin,
+                yMax = state.yMax,
+                modifier = Modifier
+                    .fillMaxSize()
+                    // 单指拖动 = 平移，双指捏合 = 以捏合点为锚缩放。
+                    // 一次手势里同时给出 pan 与 zoom，所以两者都处理、不互斥
+                    .pointerInput(state) {
+                        detectTransformGestures { centroid, pan, zoom, _ ->
+                            if (size.width <= 0 || size.height <= 0) return@detectTransformGestures
+                            val top = size.height * PLOT_TOP_DU / Disc.DESIGN
+                            val height = size.height * (PLOT_BOTTOM_DU - PLOT_TOP_DU) / Disc.DESIGN
+                            if (height <= 0f) return@detectTransformGestures
+                            if (pan != Offset.Zero) {
+                                state.panBy(pan.x / size.width, pan.y / height)
+                            }
+                            if (zoom != 1f) {
+                                state.zoomAt(
+                                    factor = zoom,
+                                    xFraction = (centroid.x / size.width).coerceIn(0f, 1f),
+                                    yFraction = ((centroid.y - top) / height).coerceIn(0f, 1f),
+                                )
+                            }
+                        }
+                    },
             )
             Column(Modifier.fillMaxSize(), horizontalAlignment = Alignment.CenterHorizontally) {
                 Spacer(Modifier.height(scaled(layout.header.top)))
@@ -247,6 +288,12 @@ fun GraphScreen(
                     haptics(true)
                     focusRow = state.functions.lastIndex
                 }
+            },
+            // 重置回到"横轴 [-10,10] + 纵轴贴合数据"，而不是死板的 [-10,10]²：
+            // 后者对 x^2 这种纵向量级大一个数量级的函数等于什么都没显示
+            onReset = {
+                state.resetView()
+                if (curves.isNotEmpty()) state.fitY(fittedY.first, fittedY.second)
             },
             onOpenChange = { open ->
                 haptics(open)
@@ -346,9 +393,9 @@ private fun graphNumber(value: BigDecimal): String = NumberFormatter.format(valu
  * 再由 `discClip` 裁成圆——于是网格在赤道处最宽、在顶底处收窄，
  * 这正是圆屏上画图应有的样子，也比"缩成一块矩形贴在中间"用满了屏幕。
  *
- * 纵轴范围用**第 98 百分位**而不是最大最小值：`1÷x` 这类函数在极点附近会取到
- * 天文数字，用极值定范围会让整条曲线压成一条线。多条曲线共用一套纵轴，
- * 否则"谁高谁低"这种比较就失去意义。
+ * 纵轴范围是**状态**（`GraphState.yMin/yMax`），不是每次绘制现算的：
+ * 能拖能缩的坐标系，两轴视野都必须是可写的状态，否则纵轴会被一直夹回去。
+ * 自动贴合只在"哪几行能画"变化时做一次，见 `GraphScreen` 里的 `fittedY`。
  */
 @Composable
 private fun PlotCanvas(
@@ -358,22 +405,26 @@ private fun PlotCanvas(
     selected: Int,
     xMin: BigDecimal,
     xMax: BigDecimal,
+    yMin: BigDecimal,
+    yMax: BigDecimal,
+    modifier: Modifier = Modifier,
 ) {
     val axisColor = MaterialTheme.colorScheme.onSurfaceVariant
     val gridColor = MaterialTheme.colorScheme.outlineVariant
     val ringColor = MaterialTheme.colorScheme.background
+    val labelColor = MaterialTheme.colorScheme.onSurfaceVariant
+    val labelSize = scaledSp(10f)
+    val measurer = rememberTextMeasurer()
 
-    val range = remember(analyses) { yRangeOf(analyses.flatMap { it.samples }) }
-
-    Canvas(Modifier.fillMaxSize()) {
+    Canvas(modifier) {
         val w = size.width
         val h = size.height
         if (w <= 0f || h <= 0f) return@Canvas
 
+        val xLow = xMin.toDouble()
+        val yLow = yMin.toDouble()
         val xSpan = xMax.subtract(xMin).toDouble()
-        val yMin = range.first.toDouble()
-        val yMax = range.second.toDouble()
-        val ySpan = yMax - yMin
+        val ySpan = yMax.subtract(yMin).toDouble()
         if (xSpan <= 0.0 || ySpan <= 0.0) return@Canvas
 
         val top = h * PLOT_TOP_DU / Disc.DESIGN
@@ -381,105 +432,142 @@ private fun PlotCanvas(
         val plotH = bottom - top
         if (plotH <= 0f) return@Canvas
 
-        fun px(x: Double) = ((x - xMin.toDouble()) / xSpan * w).toFloat()
-        fun py(y: Double) = (bottom - (y - yMin) / ySpan * plotH).toFloat()
+        fun px(x: Double) = ((x - xLow) / xSpan * w).toFloat()
+        fun py(y: Double) = (bottom - (y - yLow) / ySpan * plotH).toFloat()
 
-        // 网格：横竖两轴的步长各自取整——两条轴的量级通常差很远
-        //（`x^2` 在 [-10,10] 上纵轴比横轴大一个数量级），共用步长会让一个方向挤成大格
-        val xStep = niceStep(xSpan / 4.0)
-        var gx = floor(xMin.toDouble() / xStep) * xStep
-        while (gx <= xMax.toDouble()) {
-            val x = px(gx)
-            drawLine(gridColor, Offset(x, top), Offset(x, bottom), strokeWidth = 1f)
-            gx += xStep
-        }
-        val yStep = niceStep(ySpan / 4.0)
-        var gy = floor(yMin / yStep) * yStep
-        while (gy <= yMax) {
-            val y = py(gy)
-            drawLine(gridColor, Offset(0f, y), Offset(w, y), strokeWidth = 1f)
-            gy += yStep
-        }
+        // 横竖两轴的步长各自取整——两条轴的量级通常差很远
+        //（`x^2` 在 [-10,10] 上纵轴比横轴大一个数量级），共用步长会让一个方向挤成大格。
+        // 分五段而不是四段：纵轴范围是贴着数据取的，四段时刻度正好落在上下边缘被裁掉，
+        // 中间一个数字都看不到
+        val xStep = niceStep(xSpan / 5.0)
+        val yStep = niceStep(ySpan / 5.0)
 
-        // 坐标轴
-        if (yMin <= 0.0 && yMax >= 0.0) {
-            val y = py(0.0)
-            drawLine(axisColor, Offset(0f, y), Offset(w, y), strokeWidth = 2f)
-        }
-        if (xMin.toDouble() <= 0.0 && xMax.toDouble() >= 0.0) {
-            val x = px(0.0)
-            drawLine(axisColor, Offset(x, top), Offset(x, bottom), strokeWidth = 2f)
-        }
-
-        analyses.forEachIndexed { index, analysis ->
-            val color = colors.getOrNull(index) ?: colors.last()
-            // 曲线：遇到无定义点或跨屏跳变时断开，否则会画出一条横贯画面的假线段
-            val path = Path()
-            var penDown = false
-            var lastY = 0f
-            val jumpLimit = plotH * 1.5f
-            for (sample in analysis.samples) {
-                val y = sample.y
-                if (y == null) {
-                    penDown = false
-                    continue
-                }
-                val vy = py(y.toDouble())
-                val vx = px(sample.x.toDouble())
-                if (!vy.isFinite()) {
-                    penDown = false
-                    continue
-                }
-                if (penDown && abs(vy - lastY) > jumpLimit) penDown = false
-                if (penDown) path.lineTo(vx, vy) else path.moveTo(vx, vy)
-                penDown = true
-                lastY = vy
+        // 画布通铺整个表盘，但绘图必须收在纵向带状区域内：
+        // 平移到视野外的曲线不该继续画到顶栏或抽屉底下
+        clipRect(top = top, bottom = bottom) {
+            // 网格
+            var gx = floor(xLow / xStep) * xStep
+            while (gx <= xLow + xSpan) {
+                val x = px(gx)
+                drawLine(gridColor, Offset(x, top), Offset(x, bottom), strokeWidth = 1f)
+                gx += xStep
             }
-            // 选中的那条画粗一点：九条同屏时，光靠颜色找不出"我正在改哪条"
-            drawPath(
-                path = path,
-                color = color,
-                style = Stroke(width = if (index == active) 4f else 2.5f),
-            )
-        }
+            var gy = floor(yLow / yStep) * yStep
+            while (gy <= yLow + ySpan) {
+                val y = py(gy)
+                drawLine(gridColor, Offset(0f, y), Offset(w, y), strokeWidth = 1f)
+                gy += yStep
+            }
 
-        // 关键点只标当前曲线：九条曲线各标一遍，画面上会挂满圆点
-        val points = analyses.getOrNull(active)?.points.orEmpty()
-        val pointColor = colors.getOrNull(active) ?: return@Canvas
-        points.forEachIndexed { index, point ->
-            val center = Offset(px(point.x.toDouble()), py(point.y.toDouble()))
-            if (!center.x.isFinite() || !center.y.isFinite()) return@forEachIndexed
-            // 先垫一圈背景色，让圆点压在曲线上也看得清
-            drawCircle(ringColor, radius = 7f, center = center)
-            drawCircle(pointColor, radius = 4.5f, center = center)
-            if (index == selected) {
-                drawCircle(Color.White, radius = 10f, center = center, style = Stroke(width = 2f))
+            // 坐标轴：拖出视野后就贴在绘图区的那一侧，而不是整根消失——
+            // 否则拖远了连"哪边是正方向"都看不出来
+            val axisY = when {
+                yLow > 0.0 -> top
+                yLow + ySpan < 0.0 -> bottom
+                else -> py(0.0)
+            }
+            val axisX = when {
+                xLow > 0.0 -> 0f
+                xLow + xSpan < 0.0 -> w
+                else -> px(0.0)
+            }
+            drawLine(axisColor, Offset(0f, axisY), Offset(w, axisY), strokeWidth = 2f)
+            drawLine(axisColor, Offset(axisX, top), Offset(axisX, bottom), strokeWidth = 2f)
+
+            analyses.forEachIndexed { index, analysis ->
+                val color = colors.getOrNull(index) ?: colors.last()
+                // 曲线：遇到无定义点或跨屏跳变时断开，否则会画出一条横贯画面的假线段
+                val path = Path()
+                var penDown = false
+                var lastY = 0f
+                val jumpLimit = plotH * 1.5f
+                for (sample in analysis.samples) {
+                    val y = sample.y
+                    if (y == null) {
+                        penDown = false
+                        continue
+                    }
+                    val vy = py(y.toDouble())
+                    val vx = px(sample.x.toDouble())
+                    if (!vy.isFinite()) {
+                        penDown = false
+                        continue
+                    }
+                    if (penDown && abs(vy - lastY) > jumpLimit) penDown = false
+                    if (penDown) path.lineTo(vx, vy) else path.moveTo(vx, vy)
+                    penDown = true
+                    lastY = vy
+                }
+                // 选中的那条画粗一点：九条同屏时，光靠颜色找不出"我正在改哪条"
+                drawPath(
+                    path = path,
+                    color = color,
+                    style = Stroke(width = if (index == active) 4f else 2.5f),
+                )
+            }
+
+            // 关键点只标当前曲线：九条曲线各标一遍，画面上会挂满圆点
+            val points = analyses.getOrNull(active)?.points.orEmpty()
+            val pointColor = colors.getOrNull(active)
+            if (pointColor != null) {
+                points.forEachIndexed { index, point ->
+                    val center = Offset(px(point.x.toDouble()), py(point.y.toDouble()))
+                    if (!center.x.isFinite() || !center.y.isFinite()) return@forEachIndexed
+                    // 先垫一圈背景色，让圆点压在曲线上也看得清
+                    drawCircle(ringColor, radius = 7f, center = center)
+                    drawCircle(pointColor, radius = 4.5f, center = center)
+                    if (index == selected) {
+                        drawCircle(Color.White, radius = 10f, center = center, style = Stroke(width = 2f))
+                    }
+                }
+            }
+
+            // 刻度数字：能拖能缩的坐标系，没有数字就只是一张图
+            val style = TextStyle(color = labelColor, fontSize = labelSize)
+            var tx = floor(xLow / xStep) * xStep
+            while (tx <= xLow + xSpan) {
+                if (tx != 0.0) {
+                    val layout = measurer.measure(tickLabel(tx, xStep), style)
+                    val cx = px(tx) - layout.size.width / 2f
+                    val cy = (axisY + 2f).coerceIn(top, bottom - layout.size.height)
+                    if (cx >= 0f && cx + layout.size.width <= w) {
+                        drawText(layout, topLeft = Offset(cx, cy))
+                    }
+                }
+                tx += xStep
+            }
+            var ty = floor(yLow / yStep) * yStep
+            while (ty <= yLow + ySpan) {
+                if (ty != 0.0) {
+                    val layout = measurer.measure(tickLabel(ty, yStep), style)
+                    val cx = (axisX - layout.size.width - 3f).coerceIn(0f, w - layout.size.width)
+                    val cy = py(ty) - layout.size.height / 2f
+                    if (cy >= top && cy + layout.size.height <= bottom) {
+                        drawText(layout, topLeft = Offset(cx, cy))
+                    }
+                }
+                ty += yStep
             }
         }
     }
 }
 
 /**
- * 纵轴范围：取 |y| 的第 98 百分位作为半幅，并保证包含 0。
+ * 刻度数字。
  *
- * 用最大最小值会在 `1÷x` 这类函数上失控——极点附近单个采样就能把范围拉到 1e30。
- *
- * **不要**再给半幅加"至少等于横轴跨度"的下限：那是我加错过的一条约束。
- * 它会让 `sin(x)` 在角度制下的 ±0.17 被硬撑到 ±20，整条曲线压成一条直线。
- * 当时写的理由是"否则 x² 会被压平"，但 x² 的纵轴本来就远大于横轴，根本用不到这条下限。
+ * 小数位由**步长**决定，而不是固定几位：步长 0.2 时写 `0.2000` 是噪音，
+ * 步长 0.0002 时写 `0.0` 则完全没用。数值过大就退回科学计数，
+ * 否则一个刻度标签能横跨半个屏幕。
  */
-private fun yRangeOf(samples: List<Sample>): Pair<BigDecimal, BigDecimal> {
-    val magnitudes = samples.mapNotNull { it.y?.abs() }.sorted()
-    if (magnitudes.isEmpty()) return BigDecimal("-1") to BigDecimal("1")
-
-    val index = ((magnitudes.size - 1) * 0.98).toInt().coerceIn(0, magnitudes.size - 1)
-    // 留 10% 余量，让极值点不至于正好贴在画布边缘
-    var half = Dec.mul(magnitudes[index], PADDING)
-    if (half.signum() == 0) half = BigDecimal.ONE
-    return half.negate() to half
+private fun tickLabel(value: Double, step: Double): String {
+    if (!value.isFinite()) return ""
+    val decimals = if (step >= 1.0) 0 else (-floor(log10(step))).toInt().coerceIn(0, 6)
+    val rounded = BigDecimal.valueOf(value).setScale(decimals, java.math.RoundingMode.HALF_UP)
+    // 缩到 1e-7 这个量级时 6 位小数全是 0，科学计数才写得出来
+    if (rounded.signum() == 0 && value != 0.0) return String.format(java.util.Locale.US, "%.1e", value)
+    val plain = rounded.stripTrailingZeros().toPlainString()
+    return if (plain.length <= 8) plain else String.format(java.util.Locale.US, "%.0e", value)
 }
-
-private val PADDING: BigDecimal = BigDecimal("1.1")
 
 /** 取 1 / 2 / 5 × 10ⁿ 中最接近 raw 的步长 */
 private fun niceStep(raw: Double): Double {
@@ -514,6 +602,7 @@ private fun GraphSheet(
     focusRow: Int,
     onFocused: () -> Unit,
     onAdd: () -> Unit,
+    onReset: () -> Unit,
     onOpenChange: (Boolean) -> Unit,
     hapticsEnabled: Boolean,
     modifier: Modifier = Modifier,
@@ -541,6 +630,7 @@ private fun GraphSheet(
             SheetTools(
                 state = state,
                 onAdd = onAdd,
+                onReset = onReset,
                 hapticsEnabled = hapticsEnabled,
             )
             FunctionList(state = state, colors = colors, focusRow = focusRow, onFocused = onFocused)
@@ -624,6 +714,7 @@ private fun SheetBar(
 private fun SheetTools(
     state: GraphState,
     onAdd: () -> Unit,
+    onReset: () -> Unit,
     hapticsEnabled: Boolean,
 ) {
     val haptics = rememberKeyHaptics(hapticsEnabled)
@@ -664,7 +755,7 @@ private fun SheetTools(
             description = "重置视图",
             onClick = {
                 haptics(false)
-                state.resetView()
+                onReset()
             },
         )
     }
