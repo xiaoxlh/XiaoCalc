@@ -242,10 +242,10 @@ fun CurrencyScreen(
 }
 
 private fun hintText(state: CurrencyState): String = when (state.status) {
-    RateStatus.NotAuthorized -> "未授权联网 · 在用缓存汇率"
+    RateStatus.NotAuthorized -> "未授权联网 · 使用缓存汇率"
     is RateStatus.Loading -> "正在获取…"
     RateStatus.Idle, is RateStatus.Updated, is RateStatus.Failed ->
-        if (state.table == null) "还没有汇率 · 点下方更新" else ""
+        if (state.table == null) "暂无汇率 · 点击下方更新" else ""
 }
 
 @Composable
@@ -274,8 +274,8 @@ internal fun ConsentPanel(onDecline: () -> Unit, onAccept: () -> Unit) {
                 Spacer(Modifier.height(scaled(10f)))
                 Text(
                     text = "仅在需要时向 api.frankfurter.dev（欧洲央行等官方数据源）请求汇率，" +
-                        "只带货币代码，不含任何设备或用户信息。\n" +
-                        "同意后，汇率不是今天的时会自动更新一次；也可随时点刷新。" +
+                        "仅包含货币代码，不含任何设备或用户信息。\n" +
+                        "授权后，当本地缓存并非当日汇率时将自动更新一次，也可随时手动刷新。" +
                         "可随时在设置中撤销。",
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     fontSize = scaledSp(15f),
@@ -284,7 +284,7 @@ internal fun ConsentPanel(onDecline: () -> Unit, onAccept: () -> Unit) {
                 Spacer(Modifier.height(scaled(16f)))
                 Row(horizontalArrangement = Arrangement.spacedBy(scaled(10f))) {
                     WideButton(
-                        label = "暂不",
+                        label = "拒绝",
                         width = 130f,
                         onClick = onDecline,
                         accent = false,

@@ -40,11 +40,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.draw.drawWithContent
-import androidx.compose.ui.graphics.Brush
-import androidx.compose.ui.graphics.BlendMode
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.CompositingStrategy
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalDensity
@@ -66,14 +62,13 @@ import com.example.xiaocalc.ui.components.WatchScrollIndicator
 import com.example.xiaocalc.ui.components.rememberKeyHaptics
 
 private const val POLICY =
-    "XiaoCalc 默认离线运行，不收集您的任何信息。\n" +
-        "唯一的联网功能是货币汇率，需要您在货币页明确同意后才启用；请求只带货币代码，" +
-        "可随时在设置中撤销。\n\n" +
-        "同意之后，当本地汇率已过当日（不是今天的），打开货币页时会自动完整更新一次，" +
-        "以免您一直用着过期的汇率；同一天不会重复请求。\n\n" +
-        "使用时请遵守所在地法律法规，勿将本应用用于精密计算场景，\n" +
-        "勿在禁止使用计算器的场合使用；由此造成的后果由您自行承担。\n\n" +
-        "继续使用即表示您已阅读并同意以上内容。"
+    "XiaoCalc 默认离线运行，不收集、不上传任何用户信息。\n\n" +
+        "本应用仅有一项联网功能：货币汇率。该功能须经您在货币页明确授权后启用，" +
+        "请求仅包含货币代码，可随时在设置中撤销。\n\n" +
+        "授权后，当本地缓存并非当日汇率时，打开货币页会自动更新一次；同一日内不重复请求。\n\n" +
+        "请遵守所在地法律法规，勿将本应用用于精密计算或其他要求高可靠性的场景；" +
+        "由此产生的后果由使用者自行承担。\n\n" +
+        "继续使用即表示您已阅读并同意上述条款。"
 
 private const val STEP_COUNT = 2
 
@@ -248,7 +243,6 @@ private fun PolicyStep(
             modifier = Modifier
                 .fillMaxWidth()
                 .weight(1f)
-                .fadeEdges()
                 .onSizeChanged(onScrolled)
                 .verticalScroll(scrollState),
         ) {
@@ -264,7 +258,7 @@ private fun PolicyStep(
         StepFooter(
             pageLabel = pageLabel,
             enabled = atBottom,
-            hint = if (atBottom) null else "滑动阅读到底部以继续",
+            hint = if (atBottom) null else "滑动至底部以继续",
             onClick = onNext,
         )
     }
@@ -354,20 +348,3 @@ private fun PageDots(current: Int) {
         }
     }
 }
-
-private fun Modifier.fadeEdges(): Modifier = this
-    .graphicsLayer(compositingStrategy = CompositingStrategy.Offscreen)
-    .drawWithContent {
-        drawContent()
-        if (size.height <= 0f) return@drawWithContent
-        val fade = size.height * 0.14f
-        drawRect(
-            brush = Brush.verticalGradient(
-                0f to Color.Transparent,
-                fade / size.height to Color.Black,
-                (size.height - fade) / size.height to Color.Black,
-                1f to Color.Transparent,
-            ),
-            blendMode = BlendMode.DstIn,
-        )
-    }

@@ -215,7 +215,7 @@ fun GraphScreen(
                 )
                 Spacer(Modifier.height(scaled(POINT_TOP_DU - layout.header.bottom)))
                 PointLine(
-                    label = state.editing + 1,
+                    curve = state.editing,
                     expression = state.functions.getOrNull(state.editing)?.expression.orEmpty(),
                     point = points.getOrNull(selectedIndex),
                     index = selectedIndex,
@@ -268,7 +268,7 @@ fun GraphScreen(
 
 @Composable
 private fun PointLine(
-    label: Int,
+    curve: Int,
     expression: String,
     point: NotablePoint?,
     index: Int,
@@ -284,15 +284,15 @@ private fun PointLine(
         ""
     }
     val title = when {
-        expression.isBlank() -> "还没有函数"
+        expression.isBlank() -> "尚未输入函数"
         point == null -> "范围内没有可标注的点"
         else -> {
             val x = point.exactX ?: graphNumber(point.x)
-            "y$label ${point.kind.label}  ($x, ${graphNumber(point.y)})"
+            "${curveLabel(curve)} ${point.kind.label}  ($x, ${graphNumber(point.y)})"
         }
     }
     val subtitle = if (expression.isBlank()) {
-        "点下方横条添加，最多 ${GraphState.MAX_FUNCTIONS} 条"
+        "点击下方添加"
     } else {
         "$deg[${format(xMin)}, ${format(xMax)}]" + if (count > 0) "  ·  ${index + 1}/$count" else ""
     }
@@ -325,6 +325,14 @@ private fun format(value: BigDecimal): String {
 private val GRAPH_FORMAT = CalcSettings(decimals = 6)
 
 private fun graphNumber(value: BigDecimal): String = NumberFormatter.format(value, GRAPH_FORMAT)
+private val SUBSCRIPT_DIGITS = mapOf(
+    '0' to '₀', '1' to '₁', '2' to '₂', '3' to '₃', '4' to '₄',
+    '5' to '₅', '6' to '₆', '7' to '₇', '8' to '₈', '9' to '₉',
+)
+
+/** f(x₁), f(x₂), … */
+private fun curveLabel(index: Int): String =
+    "f(x" + (index + 1).toString().map { SUBSCRIPT_DIGITS[it] ?: it }.joinToString("") + ")"
 
 @Composable
 private fun PlotCanvas(
@@ -572,7 +580,7 @@ private fun SheetBar(
         )
         Spacer(Modifier.width(scaled(9f)))
         Text(
-            text = if (text.isBlank()) "添加函数" else "y${active + 1} = $text",
+            text = if (text.isBlank()) "添加函数" else "${curveLabel(active)} = $text",
             color = if (text.isBlank()) {
                 MaterialTheme.colorScheme.onSurfaceVariant
             } else {
@@ -749,7 +757,7 @@ private fun FunctionRow(
         Box(Modifier.weight(1f), contentAlignment = Alignment.CenterStart) {
             if (function.expression.isEmpty()) {
                 Text(
-                    text = "y${index + 1} = 输入含 x 的式子",
+                    text = "${curveLabel(index)} = 输入含 x 的式子",
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     fontSize = scaledSp(14f),
                     maxLines = 1,
@@ -786,7 +794,7 @@ private fun FunctionRow(
         ) {
             Icon(
                 imageVector = WatchVectorIcons.Close,
-                contentDescription = "删除 y${index + 1}",
+                contentDescription = "删除 ${curveLabel(index)}",
                 tint = MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier.size(scaled(15f)),
             )

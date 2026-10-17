@@ -34,7 +34,6 @@ import com.example.xiaocalc.BuildConfig
 import com.example.xiaocalc.adaptive.LocalWatchMetrics
 import com.example.xiaocalc.adaptive.scaled
 import com.example.xiaocalc.adaptive.scaledSp
-import com.example.xiaocalc.calc.AngleUnit
 import com.example.xiaocalc.calc.CalcSettings
 import com.example.xiaocalc.calc.CalculatorState
 import com.example.xiaocalc.ui.components.ChoiceRow
@@ -100,28 +99,17 @@ fun SettingsScreen(
                 SectionLabel("计算规则", Modifier.fillMaxWidth())
                 Spacer(Modifier.height(scaled(6f)))
                 SettingRow(
-                    title = "保留根号",
-                    description = "根号不换算成小数",
+                    title = "保留平方根",
+                    description = "不再将平方根以近似值计入结果",
                     checked = settings.keepRoot,
                     onToggle = { value -> controller.updateSettings { it.copy(keepRoot = value) } },
                 )
                 Spacer(Modifier.height(scaled(6f)))
                 SettingRow(
-                    title = "保留特殊符号",
-                    description = "保留 π、e 等符号",
+                    title = "保留常数符号",
+                    description = "不再将常数符号以近似值计入结果",
                     checked = settings.keepSymbols,
                     onToggle = { value -> controller.updateSettings { it.copy(keepSymbols = value) } },
-                )
-                Spacer(Modifier.height(scaled(6f)))
-                SettingRow(
-                    title = "弧度制",
-                    description = "三角函数按弧度计算",
-                    checked = settings.angleUnit == AngleUnit.RAD,
-                    onToggle = { value ->
-                        controller.updateSettings {
-                            it.copy(angleUnit = if (value) AngleUnit.RAD else AngleUnit.DEG)
-                        }
-                    },
                 )
                 Spacer(Modifier.height(scaled(14f)))
                 SectionLabel("显示与反馈", Modifier.fillMaxWidth())
@@ -139,30 +127,27 @@ fun SettingsScreen(
                             controller.updateSettings { it.copy(decimals = next) }
                         }
                     },
-                    description = if (settings.decimals >= CalcSettings.FULL) {
-                        "16 位有效数字"
-                    } else {
-                        "最多保留 ${settings.decimals} 位小数"
-                    },
+                    description = if (settings.decimals >= CalcSettings.FULL) "16 位有效数字" else "",
+
                 )
                 Spacer(Modifier.height(scaled(6f)))
                 SettingRow(
                     title = "背景模糊",
-                    description = "面板弹出时模糊身后页面",
+                    description = "部分页面背景高级效果",
                     checked = settings.blurEnabled,
                     onToggle = { value -> controller.updateSettings { it.copy(blurEnabled = value) } },
                 )
                 Spacer(Modifier.height(scaled(6f)))
                 SettingRow(
                     title = "科学计数法",
-                    description = "≥10000 用 ×10ⁿ",
+                    description = "以 10ⁿ 的形式显示 ≥10000 的结果",
                     checked = settings.scientific,
                     onToggle = { value -> controller.updateSettings { it.copy(scientific = value) } },
                 )
                 Spacer(Modifier.height(scaled(6f)))
                 SettingRow(
-                    title = "千分位分隔",
-                    description = "结果加千分位逗号",
+                    title = "结果分节",
+                    description = "在结果中每 3 位数字插入一个逗号",
                     checked = settings.groupDigits,
                     onToggle = { value -> controller.updateSettings { it.copy(groupDigits = value) } },
                 )
@@ -178,7 +163,7 @@ fun SettingsScreen(
                 Spacer(Modifier.height(scaled(6f)))
                 ChoiceRow(
                     title = "主题色",
-                    description = "强调色：${settings.themeColor.label} · 点击切换",
+                    description = "${settings.themeColor.label} · 点击切换",
                     swatch = Color(settings.themeColor.accent),
                     onClick = {
                         haptics(false)
@@ -191,9 +176,9 @@ fun SettingsScreen(
                 SettingRow(
                     title = "联网获取汇率",
                     description = if (settings.allowNetwork) {
-                        "汇率过期时自动更新一次"
+                        "汇率每日自动获取"
                     } else {
-                        "已关闭 · 使用上次缓存的汇率"
+                        "使用缓存汇率（如有）"
                     },
                     checked = settings.allowNetwork,
                     onToggle = { value ->
