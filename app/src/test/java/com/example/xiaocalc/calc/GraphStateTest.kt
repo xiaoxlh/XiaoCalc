@@ -163,4 +163,102 @@ class GraphStateTest {
         assertEquals("", s.input)
         assertEquals(0, s.selected)
     }
-}
+
+    // ------------------------------------------------------------ 多函数
+
+    @Test
+    fun `默认只有一条空函数`() {
+        val s = GraphState()
+        assertEquals(1, s.functions.size)
+        assertEquals(0, s.editing)
+        assertEquals("", s.input)
+        assertTrue("没有可画的函数时不该进入图像态", !s.enterGraph())
+    }
+
+    @Test
+    fun `可以加到九条，第十条被拒绝`() {
+        val s = GraphState()
+        // 第一条已存在，再加 8 条正好九条
+        repeat(GraphState.MAX_FUNCTIONS - 1) {
+            assertTrue("第 ${s.functions.size + 1} 条应当加得进去", s.addFunction())
+        }
+        assertEquals(GraphState.MAX_FUNCTIONS, s.functions.size)
+        assertTrue("第十条必须被拒绝", !s.addFunction())
+        assertEquals(GraphState.MAX_FUNCTIONS, s.functions.size)
+    }
+
+    @Test
+    fun `新增后自动转去编辑新那一条`() {
+        val s = GraphState()
+        s.insert("x^2")
+        s.addFunction()
+        assertEquals(1, s.editing)
+        assertEquals("", s.input)
+        s.insert("sin(x)")
+        assertEquals(listOf("x^2", "sin(x)"), s.functions.map { it.expression })
+    }
+
+    @Test
+    fun `编辑只作用于当前那一条`() {
+        val s = GraphState()
+        s.insert("x")
+        s.addFunction()
+        s.insert("2x")
+        s.selectFunction(0)
+        s.backspace()
+        assertEquals("", s.functions[0].expression)
+        assertEquals("2x", s.functions[1].expression)
+    }
+
+    @Test
+    fun `只有非空表达式才算可画`() {
+        val s = GraphState()
+        s.insert("x")
+        s.addFunction()
+        s.addFunction()
+        s.insert("x^2")
+        assertEquals(3, s.functions.size)
+        assertEquals(2, s.drawable.size)
+        assertTrue(s.enterGraph())
+    }
+
+    @Test
+    fun `删掉中间一条后面的会补位`() {
+        val s = GraphState()
+        s.insert("a")
+        s.addFunction(); s.insert("b")
+        s.addFunction(); s.insert("c")
+        s.removeFunction(1)
+        assertEquals(listOf("a", "c"), s.functions.map { it.expression })
+        // 颜色按位置分配，因此编辑下标要收敛到合法范围
+        assertTrue(s.editing in s.functions.indices)
+    }
+
+    @Test
+    fun `只剩一条时删除等价于清空`() {
+        val s = GraphState()
+        s.insert("x^2")
+        s.removeFunction(0)
+        assertEquals(1, s.functions.size)
+        assertEquals("", s.input)
+    }
+
+    @Test
+    fun `越界的选择与删除都被忽略`() {
+        val s = GraphState()
+        s.insert("x")
+        s.selectFunction(7)
+        assertEquals(0, s.editing)
+        s.removeFunction(5)
+        assertEquals(1, s.functions.size)
+    }
+
+    @Test
+    fun `清空只清当前那一条`() {
+        val s = GraphState()
+        s.insert("x")
+        s.addFunction()
+        s.insert("y")
+        s.clear()
+        assertEquals(listOf("x", ""), s.functions.map { it.expression })
+    }}
