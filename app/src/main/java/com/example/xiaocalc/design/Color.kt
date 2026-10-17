@@ -62,3 +62,33 @@ fun colorSchemeFor(theme: ThemeColor): ColorScheme = darkColorScheme(
 
     scrim = Color(0xCC000000),
 )
+
+/**
+ * 曲线配色表（不含第一条，第一条恒为主题强调色）。
+ *
+ * 为什么不从主题色派生出九种深浅：同一个色相里拉出九档明度，在 480px 的圆屏上
+ * 相邻两条根本分不开，而"分得开"正是多条曲线同屏的唯一意义。
+ * 顺序按冷暖交替排列——最容易被放在一起比较的是相邻两条，让它们的色相相差最大；
+ * 亮度统一取在纯黑背景上对比度足够的一档，深浅差异只用来区分选中态。
+ */
+val CurvePalette: List<Color> = listOf(
+    Color(0xFF4FC3F7), // 天蓝
+    Color(0xFF9CCC65), // 黄绿
+    Color(0xFFFFD54F), // 琥珀
+    Color(0xFFBA68C8), // 紫
+    Color(0xFF4DD0E1), // 青
+    Color(0xFFFF8A65), // 橙
+    Color(0xFFF06292), // 粉
+    Color(0xFFB0BEC5), // 蓝灰
+)
+
+/**
+ * 第 n 条曲线用什么颜色。
+ *
+ * 第一条用 [primary]，图像页因此跟着主题走；其余取 [CurvePalette]。
+ * 最多 9 条（`GraphState.MAX_FUNCTIONS`），表刚好够长。
+ */
+fun curveColors(primary: Color): List<Color> = buildList {
+    add(primary)
+    addAll(CurvePalette)
+}

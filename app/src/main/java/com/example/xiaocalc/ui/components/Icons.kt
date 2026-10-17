@@ -97,6 +97,28 @@ object WatchVectorIcons {
         vector(ARROW_FORWARD_PATH)
     }
 
+    /** 加号（Material Symbols 的 add）：抽屉里的"添加函数" */
+    private const val PLUS_PATH = "M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z"
+
+    val Plus: ImageVector by lazy {
+        vector(PLUS_PATH)
+    }
+
+    /** 减号（Material Symbols 的 remove）：图像页的缩小 */
+    private const val REMOVE_PATH = "M19 13H5v-2h14v2z"
+
+    val Remove: ImageVector by lazy {
+        vector(REMOVE_PATH)
+    }
+
+    /** 叉（Material Symbols 的 close）：删掉一条函数 */
+    private const val CLOSE_PATH =
+        "M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"
+
+    val Close: ImageVector by lazy {
+        vector(CLOSE_PATH)
+    }
+
     private fun vector(path: String): ImageVector =
         ImageVector.Builder(
             name = "WatchIcon",

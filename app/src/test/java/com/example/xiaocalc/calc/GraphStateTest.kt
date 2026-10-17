@@ -1,15 +1,14 @@
 package com.example.xiaocalc.calc
 
 import org.junit.Assert.assertEquals
-import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
 /**
  * 图像页状态机的验证。
  *
- * 重点在**视图范围**：缩放的锚点、上下限、以及缩放后选中点的收敛。
- * 输入规则与方程页同源，这里只做抽查。
+ * 重点在**视图范围**与**多函数的下标映射**：缩放的锚点、上下限、
+ * 以及"正在编辑的那一条"在可画列表里的位置（颜色与关键点都按它取）。
  */
 class GraphStateTest {
 
@@ -21,20 +20,6 @@ class GraphStateTest {
         assertEquals("-10", s.xMin.toPlainString())
         assertEquals("10", s.xMax.toPlainString())
         assertEquals("20", s.span.toPlainString())
-        assertFalse(s.graphing)
-    }
-
-    @Test
-    fun `空解析式不能进入图像态`() {
-        val s = state()
-        assertFalse(s.enterGraph())
-        assertFalse(s.graphing)
-
-        s.insert("x^2")
-        assertTrue(s.enterGraph())
-        assertTrue(s.graphing)
-        s.exitGraph()
-        assertFalse(s.graphing)
     }
 
     @Test
@@ -142,22 +127,9 @@ class GraphStateTest {
     }
 
     @Test
-    fun `输入规则与方程页一致`() {
-        val s = state()
-        s.onKey(CalcKey.Digit('0'))
-        s.onKey(CalcKey.Digit('5'))
-        assertEquals("前导零被替换", "5", s.input)
-        s.onKey(CalcKey.VariableX)
-        assertEquals("5x", s.input)
-        s.onKey(CalcKey.Power)
-        s.onKey(CalcKey.Times)
-        assertEquals("连按两个运算符是改主意", "5x×", s.input)
-    }
-
-    @Test
     fun `清空同时重置选中点`() {
         val s = state()
-        s.insert("x^2")
+        s.setExpression("x^2")
         s.selectNext(4)
         s.clear()
         assertEquals("", s.input)
@@ -172,15 +144,18 @@ class GraphStateTest {
         assertEquals(1, s.functions.size)
         assertEquals(0, s.editing)
         assertEquals("", s.input)
-        assertTrue("没有可画的函数时不该进入图像态", !s.enterGraph())
+        assertEquals("空函数算不上可画", 0, s.drawable.size)
+        assertEquals("没有可画的函数时不该有选中曲线", -1, s.activeCurve)
     }
 
     @Test
     fun `可以加到九条，第十条被拒绝`() {
         val s = GraphState()
-        // 第一条已存在，再加 8 条正好九条
+        // 第一条已存在，再加 8 条正好九条；每条都要写上，否则末尾的空白会被复用
+        s.setExpression("x")
         repeat(GraphState.MAX_FUNCTIONS - 1) {
             assertTrue("第 ${s.functions.size + 1} 条应当加得进去", s.addFunction())
+            s.setExpression("x")
         }
         assertEquals(GraphState.MAX_FUNCTIONS, s.functions.size)
         assertTrue("第十条必须被拒绝", !s.addFunction())
@@ -188,46 +163,74 @@ class GraphStateTest {
     }
 
     @Test
+    fun `末尾已有空白条目时复用而不是再加一行`() {
+        val s = GraphState()
+        assertTrue(s.addFunction())
+        assertEquals("空白条目应被复用", 1, s.functions.size)
+        s.setExpression("x")
+        assertTrue(s.addFunction())
+        assertEquals(2, s.functions.size)
+    }
+
+    @Test
     fun `新增后自动转去编辑新那一条`() {
         val s = GraphState()
-        s.insert("x^2")
+        s.setExpression("x^2")
         s.addFunction()
         assertEquals(1, s.editing)
         assertEquals("", s.input)
-        s.insert("sin(x)")
+        s.setExpression("sin(x)")
         assertEquals(listOf("x^2", "sin(x)"), s.functions.map { it.expression })
     }
 
     @Test
-    fun `编辑只作用于当前那一条`() {
+    fun `update 只改指定那一条并把编辑焦点移过去`() {
         val s = GraphState()
-        s.insert("x")
+        s.setExpression("x")
         s.addFunction()
-        s.insert("2x")
-        s.selectFunction(0)
-        s.backspace()
-        assertEquals("", s.functions[0].expression)
-        assertEquals("2x", s.functions[1].expression)
+        s.setExpression("2x")
+        s.update(0, "x^2")
+        assertEquals(listOf("x^2", "2x"), s.functions.map { it.expression })
+        assertEquals(0, s.editing)
+    }
+
+    /**
+     * `activeCurve` 是**可画列表**里的下标，而不是函数列表里的下标。
+     *
+     * 两者只在"列表里没有空白条目"时相等。抽屉允许存在刚点"+"还没写的空行，
+     * 拿函数下标去取颜色会把整排曲线错位一格。
+     */
+    @Test
+    fun `activeCurve 跳过空白条目`() {
+        val s = GraphState()
+        s.setExpression("x")
+        assertEquals(0, s.activeCurve)
+
+        s.addFunction()
+        assertEquals("正在编辑空白条目时没有选中曲线", -1, s.activeCurve)
+
+        s.addFunction()
+        s.setExpression("x^2")
+        assertEquals("前面只有一条可画，因此是第二条", 1, s.activeCurve)
     }
 
     @Test
     fun `只有非空表达式才算可画`() {
         val s = GraphState()
-        s.insert("x")
+        s.setExpression("x")
         s.addFunction()
-        s.addFunction()
-        s.insert("x^2")
+        s.setExpression("x^2")
+        s.addFunction() // 末尾留一个空白条目
         assertEquals(3, s.functions.size)
         assertEquals(2, s.drawable.size)
-        assertTrue(s.enterGraph())
     }
 
     @Test
     fun `删掉中间一条后面的会补位`() {
         val s = GraphState()
-        s.insert("a")
-        s.addFunction(); s.insert("b")
-        s.addFunction(); s.insert("c")
+        s.setExpression("a")
+        s.addFunction(); s.setExpression("b")
+        s.addFunction(); s.setExpression("c")
         s.removeFunction(1)
         assertEquals(listOf("a", "c"), s.functions.map { it.expression })
         // 颜色按位置分配，因此编辑下标要收敛到合法范围
@@ -237,7 +240,7 @@ class GraphStateTest {
     @Test
     fun `只剩一条时删除等价于清空`() {
         val s = GraphState()
-        s.insert("x^2")
+        s.setExpression("x^2")
         s.removeFunction(0)
         assertEquals(1, s.functions.size)
         assertEquals("", s.input)
@@ -246,7 +249,7 @@ class GraphStateTest {
     @Test
     fun `越界的选择与删除都被忽略`() {
         val s = GraphState()
-        s.insert("x")
+        s.setExpression("x")
         s.selectFunction(7)
         assertEquals(0, s.editing)
         s.removeFunction(5)
@@ -256,9 +259,10 @@ class GraphStateTest {
     @Test
     fun `清空只清当前那一条`() {
         val s = GraphState()
-        s.insert("x")
+        s.setExpression("x")
         s.addFunction()
-        s.insert("y")
+        s.setExpression("y")
         s.clear()
         assertEquals(listOf("x", ""), s.functions.map { it.expression })
-    }}
+    }
+}

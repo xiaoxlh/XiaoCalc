@@ -387,10 +387,12 @@ class WatchScreenshotTest {
 
     // ------------------------------------------------------------------ 图像
 
-    private fun graphState(text: String, graphing: Boolean = false): GraphState {
+    private fun graphState(vararg texts: String): GraphState {
         val state = GraphState()
-        state.insert(text)
-        if (graphing) state.enterGraph()
+        texts.forEachIndexed { index, text ->
+            if (index > 0) state.addFunction()
+            state.setExpression(text)
+        }
         return state
     }
 
@@ -404,19 +406,26 @@ class WatchScreenshotTest {
         )
     }
 
+    /** 首次进入：一条函数都没有，抽屉自动展开 */
     @Test
-    fun graph_input() {
-        graphSnapshot("graph_input", graphState("x^2-2"))
+    fun graph_editor() {
+        graphSnapshot("graph_editor", graphState())
     }
 
     @Test
     fun graph_parabola() {
-        graphSnapshot("graph_parabola", graphState("x^2-2", graphing = true))
+        graphSnapshot("graph_parabola", graphState("x^2-2"))
     }
 
     @Test
     fun graph_cubic() {
-        graphSnapshot("graph_cubic", graphState("x^3-3x", graphing = true))
+        graphSnapshot("graph_cubic", graphState("x^3-3x"))
+    }
+
+    /** 三条同屏：验证颜色按位置分配，且只标选中那条的关键点 */
+    @Test
+    fun graph_multi() {
+        graphSnapshot("graph_multi", graphState("x^2-2", "0.5x+1", "-x^2+4"))
     }
 
     /**
@@ -433,7 +442,7 @@ class WatchScreenshotTest {
             XiaoCalcTheme {
                 WatchFrame(modifier = Modifier.fillMaxSize()) {
                     GraphScreen(
-                        state = graphState("sin(x)", graphing = true),
+                        state = graphState("sin(x)"),
                         settings = CalcSettings(angleUnit = AngleUnit.RAD),
                         time = "10:24",
                         hapticsEnabled = false,
