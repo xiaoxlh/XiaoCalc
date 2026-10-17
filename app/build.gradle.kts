@@ -10,7 +10,7 @@ plugins {
 }
 
 android {
-    namespace = "com.example.xiaocalc"
+    namespace = "com.xiaoxlh.xiaocalc"
 
     compileSdk = 36
 
@@ -32,7 +32,7 @@ android {
     }
 
     defaultConfig {
-        applicationId = "com.example.xiaocalc"
+        applicationId = "com.xiaoxlh.xiaocalc"
         minSdk = 26
         targetSdk = 34
         versionCode = 21
