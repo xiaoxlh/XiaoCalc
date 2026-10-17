@@ -388,7 +388,7 @@ class WatchScreenshotTest {
 
     // ------------------------------------------------------------------ 图像
 
-    private fun graphState(vararg texts: String): GraphState {
+    private fun graphState(vararg texts: String, angleUnit: AngleUnit = AngleUnit.DEG): GraphState {
         val state = GraphState()
         texts.forEachIndexed { index, text ->
             if (index > 0) state.addFunction()
@@ -398,7 +398,7 @@ class WatchScreenshotTest {
         // 所以这里手工走一遍同样的计算，否则金图里会是一块被裁掉大半的抛物线
         val samples = state.functions
             .filter { it.isDrawable }
-            .flatMap { FunctionAnalysis.sample(it.expression, state.xMin, state.xMax) }
+            .flatMap { FunctionAnalysis.sample(it.expression, state.xMin, state.xMax, angleUnit) }
         val range = FunctionAnalysis.viewRange(samples)
         state.fitY(range.first, range.second)
         return state
@@ -450,7 +450,7 @@ class WatchScreenshotTest {
             XiaoCalcTheme {
                 WatchFrame(modifier = Modifier.fillMaxSize()) {
                     GraphScreen(
-                        state = graphState("sin(x)"),
+                        state = graphState("sin(x)", angleUnit = AngleUnit.RAD),
                         settings = CalcSettings(angleUnit = AngleUnit.RAD),
                         time = "10:24",
                         hapticsEnabled = false,

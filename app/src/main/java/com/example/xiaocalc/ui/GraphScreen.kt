@@ -180,14 +180,14 @@ fun GraphScreen(
     // 纵轴自动贴合数据：只在"哪几行能画"发生变化时做。
     // 每敲一个字符都重算是错的——输入 x^2-2 的过程中纵轴会连跳五次；
     // 而回到本页时再算一次也是错的，那会把用户刚才拖出来的视野抹掉。
+    // 纵轴自动贴合数据：只在"还在自动模式"时跟着表达式走。
+    // 用户拖过缩过之后 autoFit 关掉——那时他看的就是自己挑的那一块，
+    // 再贴合等于每敲一个字都把视野抢回去；点"重置"重新交还。
+    // 输入过程中画布被输入法整个盖住，所以这里的逐字重算不会让人看到画面乱跳
     val fittedY = FunctionAnalysis.viewRange(analyses.flatMap { it.samples })
-    val fitKey = curves.map { it.index }
-    var lastFitKey by remember { mutableStateOf(fitKey) }
-    LaunchedEffect(fitKey) {
-        if (lastFitKey != fitKey) {
-            lastFitKey = fitKey
-            if (fitKey.isNotEmpty()) state.fitY(fittedY.first, fittedY.second)
-        }
+    val exprKey = curves.map { it.value.expression }
+    LaunchedEffect(exprKey) {
+        if (state.autoFit && exprKey.isNotEmpty()) state.fitY(fittedY.first, fittedY.second)
     }
 
     RotaryHandler(AppPage.GRAPH) { pixels ->
@@ -289,11 +289,21 @@ fun GraphScreen(
                     focusRow = state.functions.lastIndex
                 }
             },
-            // 重置回到"横轴 [-10,10] + 纵轴贴合数据"，而不是死板的 [-10,10]²：
-            // 后者对 x^2 这种纵向量级大一个数量级的函数等于什么都没显示
+            // 重置回到"横轴 [-10,10] + 纵轴贴合数据"。贴合必须按**默认窗口**重新采样：
+            // 直接复用当前的 fittedY 会用缩放后那个窄窗口的范围，把曲线裁出画面。
+            // 也不能只靠下面那个 LaunchedEffect——横轴本来就在 [-10,10] 时它不会重跑
             onReset = {
                 state.resetView()
-                if (curves.isNotEmpty()) state.fitY(fittedY.first, fittedY.second)
+                val samples = curves.flatMap {
+                    FunctionAnalysis.sample(
+                        it.value.expression,
+                        GraphState.DEFAULT_X_MIN,
+                        GraphState.DEFAULT_X_MAX,
+                        settings.angleUnit,
+                    )
+                }
+                val range = FunctionAnalysis.viewRange(samples)
+                if (samples.isNotEmpty()) state.fitY(range.first, range.second)
             },
             onOpenChange = { open ->
                 haptics(open)

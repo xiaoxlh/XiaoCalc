@@ -127,6 +127,22 @@ class GraphStateTest {
         assertDec("0", s.yMax)
     }
 
+    /**
+     * 自动贴合是"谁的视野"的问题：用户拖过一次之后，视野就是他的，
+     * 再跟着表达式自动贴合等于每敲一个字就把视野抢回去。
+     */
+    @Test
+    fun `拖动后关闭自动贴合，重置后恢复`() {
+        val s = state()
+        assertTrue(s.autoFit)
+        s.panBy(0.1f, 0f)
+        assertTrue("拖动之后不该再自动贴合", !s.autoFit)
+        s.resetView()
+        assertTrue(s.autoFit)
+        s.zoom(2)
+        assertTrue("缩放之后同样关闭", !s.autoFit)
+    }
+
     @Test
     fun `fitY 接受数据范围并拒绝倒置区间`() {
         val s = state()

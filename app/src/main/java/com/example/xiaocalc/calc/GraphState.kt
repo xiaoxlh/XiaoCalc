@@ -66,6 +66,15 @@ class GraphState {
     var selected: Int by mutableStateOf(0)
         private set
 
+    /**
+     * 是否还处在"纵轴自动贴合数据"状态。
+     *
+     * 用户一旦自己拖动或缩放，就说明他想看的是自己挑的那一块，再自动贴合等于
+     * 每敲一个字就把视野抢回去；点"重置"重新交还给自动贴合。
+     */
+    var autoFit: Boolean by mutableStateOf(true)
+        private set
+
     val span: BigDecimal get() = Dec.sub(xMax, xMin)
     val ySpan: BigDecimal get() = Dec.sub(yMax, yMin)
 
@@ -184,6 +193,7 @@ class GraphState {
         xMax = Dec.sub(xMax, dx)
         yMin = Dec.add(yMin, dy)
         yMax = Dec.add(yMax, dy)
+        autoFit = false
         selected = 0
     }
 
@@ -208,6 +218,7 @@ class GraphState {
         val nextY = Dec.mul(next, ratio)
         yMin = Dec.sub(ay, Dec.mul(nextY, fraction(yFraction)))
         yMax = Dec.add(yMin, nextY)
+        autoFit = false
         selected = 0
     }
 
@@ -235,10 +246,11 @@ class GraphState {
     }
 
     fun resetView() {
-        xMin = BigDecimal("-10")
-        xMax = BigDecimal("10")
+        xMin = DEFAULT_X_MIN
+        xMax = DEFAULT_X_MAX
         yMin = BigDecimal("-10")
         yMax = BigDecimal("10")
+        autoFit = true
         selected = 0
     }
 
@@ -269,7 +281,11 @@ class GraphState {
         /** 同时绘制的函数条数上限：再多颜色就分不开了 */
         const val MAX_FUNCTIONS = 9
 
-        /** 最小/最大跨度：再窄或再宽都已经没有绘图意义，且能挡住浮点误差累积 */
+            /** 默认横轴窗口；"重置"回到这里，页面的纵轴贴合也按这个窗口重算 */
+        val DEFAULT_X_MIN: BigDecimal = BigDecimal("-10")
+        val DEFAULT_X_MAX: BigDecimal = BigDecimal("10")
+
+    /** 最小/最大跨度：再窄或再宽都已经没有绘图意义，且能挡住浮点误差累积 */
         private val MIN_SPAN: BigDecimal = BigDecimal("0.002")
         private val MAX_SPAN: BigDecimal = BigDecimal("2000000")
     }
