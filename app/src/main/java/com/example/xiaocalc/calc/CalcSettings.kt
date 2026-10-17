@@ -32,8 +32,28 @@ data class CalcSettings(
      * 而不是靠"记得别调用"。
      */
     val allowNetwork: Boolean = false,
+    /**
+     * 显示的小数位数，0..[FULL]。
+     *
+     * **默认为 [FULL] 表示"全精度"**：此时完全沿用 16 位有效数字的显示契约，
+     * 与 1.1.x 及本版此前逐字节相同。取值小于 [FULL] 时才额外按该位数舍入——
+     * 也就是说这个设置只会**减少**显示位数，不会凭空多出位来。
+     *
+     * 只作用于计算器 / 单位换算 / 货币换算三个页面。函数图像与方程页
+     * 直接使用各自的 `FORMAT_SETTINGS`，读不到这一项：那里的坐标值需要
+     * 统一的有效位数才好对齐刻度，混进用户的小数位设置反而会变糊涂。
+     */
+    val decimals: Int = FULL,
 ) {
     companion object {
+        /**
+         * "不额外限制小数位"的哨兵值，也是 [decimals] 的上界。
+         *
+         * 取 16 与 [NumberFormatter.SIGNIFICANT_DIGITS] 同值：显示契约本身就是
+         * "16 位有效数字"，再往下限制才有意义，往上是重复的。
+         */
+        const val FULL = 16
+
         // 旧版存储 key（SharedPreferences: calculator_settings）
         const val KEY_ROOT = "root"
         const val KEY_SCIENTIFIC = "scientific"
@@ -45,5 +65,6 @@ data class CalcSettings(
         const val KEY_HAPTICS = "haptics"
         const val KEY_THEME = "theme_color"
         const val KEY_NETWORK = "allow_network"
+        const val KEY_DECIMALS = "decimals"
     }
 }

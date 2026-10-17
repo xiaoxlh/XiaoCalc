@@ -35,10 +35,18 @@ fun ActionBar(
     onKey: (CalcKey) -> Unit,
     onSelectPage: (KeypadPage) -> Unit,
     modifier: Modifier = Modifier,
+    /**
+     * 工具面板的入口。非 null 时，后两格变成"分页切换 + 工具"。
+     *
+     * 计算器主页要用它；单位/货币页没有工具面板，仍用 `123` / `fx` 两个独立分页胶囊。
+     * 四格是这条行能容纳的上限（该区间弦长约 190du），所以两个分页键只能合成一格。
+     */
+    onTools: (() -> Unit)? = null,
 ) {
     val items = WatchLayout.ACTION_ITEMS
     val gap = scaled(WatchLayout.KEY_GAP)
     val itemWidth = (zone.maxWidth - (items - 1) * WatchLayout.KEY_GAP) / items
+    val toolsHaptics = rememberKeyHaptics(hapticsEnabled)
 
     Box(
         modifier = modifier
@@ -68,24 +76,83 @@ fun ActionBar(
                 onKey = onKey,
                 icon = Backspace,
             )
-            PageChip(
-                label = "123",
-                selected = page == KeypadPage.MAIN,
-                widthDu = itemWidth,
-                heightDu = zone.height,
-                hapticsEnabled = hapticsEnabled,
-                onClick = { onSelectPage(KeypadPage.MAIN) },
-            )
-            PageChip(
-                label = "fx",
-                selected = page == KeypadPage.FUNCTIONS,
-                widthDu = itemWidth,
-                heightDu = zone.height,
-                hapticsEnabled = hapticsEnabled,
-                onClick = { onSelectPage(KeypadPage.FUNCTIONS) },
-            )
+            if (onTools == null) {
+                PageChip(
+                    label = "123",
+                    selected = page == KeypadPage.MAIN,
+                    widthDu = itemWidth,
+                    heightDu = zone.height,
+                    hapticsEnabled = hapticsEnabled,
+                    onClick = { onSelectPage(KeypadPage.MAIN) },
+                )
+                PageChip(
+                    label = "fx",
+                    selected = page == KeypadPage.FUNCTIONS,
+                    widthDu = itemWidth,
+                    heightDu = zone.height,
+                    hapticsEnabled = hapticsEnabled,
+                    onClick = { onSelectPage(KeypadPage.FUNCTIONS) },
+                )
+            } else {
+                PageToggleChip(
+                    page = page,
+                    widthDu = itemWidth,
+                    heightDu = zone.height,
+                    hapticsEnabled = hapticsEnabled,
+                    onSelectPage = onSelectPage,
+                )
+                CalcKeyButton(
+                    key = CalcKey.PageMain, // 仅占位：颜色、图标、描述全被覆盖
+                    widthDu = itemWidth,
+                    heightDu = zone.height,
+                    hapticsEnabled = hapticsEnabled,
+                    onKey = {
+                        toolsHaptics(false)
+                        onTools()
+                    },
+                    icon = WatchVectorIcons.Apps,
+                    description = "工具",
+                    shape = RoundedCornerShape(percent = CHIP_CORNER_PERCENT),
+                    containerOverride = MaterialTheme.colorScheme.surfaceContainerHigh,
+                    contentOverride = MaterialTheme.colorScheme.onSurface,
+                )
+            }
         }
     }
+}
+
+/**
+ * 合并后的分页开关。
+ *
+ * 键面写的是**按下去会到哪一页**（在数字页上写 `fx`，在函数页上写 `123`），
+ * 而不是"当前在哪一页"——因为键盘内容本身已经说明了当前页；
+ * 若这里再重复一次，四格里就有两格在说同一件事，而"能去哪"反而无处可见。
+ */
+@Composable
+private fun PageToggleChip(
+    page: KeypadPage,
+    widthDu: Float,
+    heightDu: Float,
+    hapticsEnabled: Boolean,
+    onSelectPage: (KeypadPage) -> Unit,
+) {
+    val haptics = rememberKeyHaptics(hapticsEnabled)
+    val target = if (page == KeypadPage.MAIN) KeypadPage.FUNCTIONS else KeypadPage.MAIN
+    CalcKeyButton(
+        key = if (target == KeypadPage.MAIN) CalcKey.PageMain else CalcKey.PageFunctions,
+        widthDu = widthDu,
+        heightDu = heightDu,
+        hapticsEnabled = hapticsEnabled,
+        onKey = {
+            haptics(false)
+            onSelectPage(target)
+        },
+        glyphOverride = if (target == KeypadPage.MAIN) "123" else "fx",
+        shape = RoundedCornerShape(percent = CHIP_CORNER_PERCENT),
+        fontWeightOverride = FontWeight.Bold,
+        containerOverride = MaterialTheme.colorScheme.surfaceContainerHigh,
+        contentOverride = MaterialTheme.colorScheme.onSurface,
+    )
 }
 
 /**

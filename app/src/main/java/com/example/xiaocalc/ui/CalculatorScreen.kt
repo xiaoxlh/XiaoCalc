@@ -80,6 +80,7 @@ fun CalculatorScreen(
     val hapticsEnabled = controller.settings.haptics
     val haptics = rememberKeyHaptics(hapticsEnabled)
     var menuOpen by remember { mutableStateOf(false) }
+    var toolsOpen by remember { mutableStateOf(false) }
 
     // 显示区的横向滚动由页面持有：表冠要能驱动它们（"能滚就滚，没得滚才换页"）
     val expressionScroll = rememberScrollState()
@@ -88,6 +89,7 @@ fun CalculatorScreen(
     val rotaryHaptics = rememberKeyHaptics(hapticsEnabled)
 
     BackHandler(enabled = menuOpen) { menuOpen = false }
+    BackHandler(enabled = toolsOpen) { toolsOpen = false }
 
     // 表冠：优先横向滚显示区；显示区没有可滚内容时才切换键盘分页。
     // 这样"拧了有反应"是恒成立的——否则在短表达式下拧表冠会像坏了一样。
@@ -183,6 +185,10 @@ fun CalculatorScreen(
                         if (page == KeypadPage.MAIN) CalcKey.PageMain else CalcKey.PageFunctions,
                     )
                 },
+                onTools = {
+                    haptics(false)
+                    toolsOpen = true
+                },
             )
 
             Spacer(Modifier.weight(1f))
@@ -225,22 +231,6 @@ fun CalculatorScreen(
             modifier = Modifier.align(Alignment.TopEnd),
         ) {
             CalculatorMenu(
-                onUnits = {
-                    menuOpen = false
-                    onNavigate(AppPage.UNITS)
-                },
-                onEquation = {
-                    menuOpen = false
-                    onNavigate(AppPage.EQUATION)
-                },
-                onGraph = {
-                    menuOpen = false
-                    onNavigate(AppPage.GRAPH)
-                },
-                onCurrency = {
-                    menuOpen = false
-                    onNavigate(AppPage.CURRENCY)
-                },
                 onHistory = {
                     menuOpen = false
                     onNavigate(AppPage.HISTORY)
@@ -254,15 +244,45 @@ fun CalculatorScreen(
                 endPadding = scaled((Disc.DESIGN - layout.display.maxWidth) / 2f),
             )
         }
+
+        // -------------------------------------------------------------- 工具面板
+        AnimatedVisibility(
+            visible = toolsOpen,
+            enter = fadeIn(Motion.enter(Motion.DURATION_SHORT3)),
+            exit = fadeOut(Motion.exit(Motion.DURATION_SHORT2)),
+        ) {
+            ToolsPanel(
+                onDismiss = { toolsOpen = false },
+                onEquation = {
+                    toolsOpen = false
+                    onNavigate(AppPage.EQUATION)
+                },
+                onGraph = {
+                    toolsOpen = false
+                    onNavigate(AppPage.GRAPH)
+                },
+                onUnits = {
+                    toolsOpen = false
+                    onNavigate(AppPage.UNITS)
+                },
+                onCurrency = {
+                    toolsOpen = false
+                    onNavigate(AppPage.CURRENCY)
+                },
+            )
+        }
     }
 }
 
+/**
+ * 右上角的溢出菜单。
+ *
+ * 只剩**历史记录**与**设置**两项——这两项是"查看/配置"，不是"干活"。
+ * 解方程、函数图像、单位换算、货币换算搬去了底部操作行的工具面板：
+ * 那些是真正的功能入口，值得更大的目标与更清楚的字，而不是挤在一行小字里。
+ */
 @Composable
 private fun CalculatorMenu(
-    onUnits: () -> Unit,
-    onEquation: () -> Unit,
-    onGraph: () -> Unit,
-    onCurrency: () -> Unit,
     onHistory: () -> Unit,
     onSettings: () -> Unit,
     topPadding: Dp,
@@ -278,10 +298,6 @@ private fun CalculatorMenu(
         shadowElevation = 6.dp,
     ) {
         Column(Modifier.padding(vertical = scaled(6f))) {
-            MenuItem("解方程", onEquation)
-            MenuItem("函数图像", onGraph)
-            MenuItem("货币换算", onCurrency)
-            MenuItem("单位换算", onUnits)
             MenuItem("历史记录", onHistory)
             MenuItem("设置", onSettings)
         }

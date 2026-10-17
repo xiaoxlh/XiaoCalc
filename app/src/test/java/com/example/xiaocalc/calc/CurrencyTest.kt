@@ -7,6 +7,7 @@ import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import java.math.BigDecimal
+import java.time.LocalDate
 import java.math.MathContext
 import java.math.RoundingMode
 
@@ -248,4 +249,38 @@ class CurrencyTest {
         assertEquals(beforeTo, state.from)
         assertEquals(beforeFrom, state.to)
     }
-}
+
+    @Test
+    fun `汇率过期判定按日期而不是按小时`() {
+        val store = InMemoryRateStore()
+        val state = CurrencyState(store)
+
+        // 没有缓存：第一次总得取一次
+        assertTrue("无缓存时应当需要续期", state.needsAutoRenew(LocalDate.of(2026, 10, 17)))
+
+        state.applyResult(
+            RateTable("USD", mapOf("CNY" to BigDecimal("7.1")), "2026-10-16"),
+        )
+        assertTrue(
+            "旧一天的汇率应当触发自动续期",
+            state.needsAutoRenew(LocalDate.of(2026, 10, 17)),
+        )
+        assertFalse(
+            "同一天内不该再请求——汇率按日发布，刷新多少次都是同一份",
+            state.needsAutoRenew(LocalDate.of(2026, 10, 16)),
+        )
+        assertFalse(
+            "日期比现在还新（时区差）也不该反复请求",
+            state.needsAutoRenew(LocalDate.of(2026, 10, 15)),
+        )
+    }
+
+    @Test
+    fun `缓存日期无法解析时按过期处理`() {
+        val state = CurrencyState(InMemoryRateStore())
+        state.applyResult(RateTable("USD", mapOf("CNY" to BigDecimal("7.1")), "不是日期"))
+        assertTrue(
+            "除非能证明是今天的，否则宁可多取一次",
+            state.needsAutoRenew(LocalDate.of(2026, 10, 17)),
+        )
+    }}

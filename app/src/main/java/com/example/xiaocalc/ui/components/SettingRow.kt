@@ -25,6 +25,7 @@ import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Density
+import androidx.wear.compose.material3.Slider
 import androidx.wear.compose.material3.SwitchButton
 import com.example.xiaocalc.adaptive.scaled
 import com.example.xiaocalc.adaptive.scaledSp
@@ -161,4 +162,59 @@ fun SectionLabel(text: String, modifier: Modifier = Modifier) {
         fontWeight = FontWeight.Bold,
         maxLines = 1,
     )
+}
+
+/**
+ * 设置项卡片：左标题 + 右当前取值，下面一条**官方手表滑杆**。
+ *
+ * 数值类设置（小数位数）用开关表达不了，用循环点击又要连点十几次，
+ * 因此在表盘上直接拖一条滑杆最省事——[Slider] 自带 ± 图标，
+ * 只想调一格时也不必精确拖动。
+ *
+ * 只有当 [steps] 超过 `SliderDefaults.MaxSegmentSteps`（8）时才会退化成
+ * 连续滑杆；小数位有 17 档，正是那种情况——17 段小方块挤在 160dp 宽的表盘上
+ * 根本分辨不出来，连续滑杆反而更好用。
+ */
+@Composable
+fun SliderRow(
+    title: String,
+    valueLabel: String,
+    value: Float,
+    steps: Int,
+    valueRange: ClosedFloatingPointRange<Float>,
+    onValueChange: (Float) -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    Column(modifier.fillMaxWidth()) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = scaled(18f)),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Text(
+                text = title,
+                color = MaterialTheme.colorScheme.onSurface,
+                fontSize = scaledSp(23f),
+                fontWeight = FontWeight.Bold,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.weight(1f, fill = false),
+            )
+            Spacer(Modifier.weight(1f))
+            Text(
+                text = valueLabel,
+                color = MaterialTheme.colorScheme.primary,
+                fontSize = scaledSp(21f),
+                fontWeight = FontWeight.Bold,
+                maxLines = 1,
+            )
+        }
+        Slider(
+            value = value,
+            onValueChange = onValueChange,
+            steps = steps,
+            valueRange = valueRange,
+        )
+    }
 }

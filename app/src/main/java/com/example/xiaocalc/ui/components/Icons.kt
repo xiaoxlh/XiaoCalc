@@ -71,6 +71,20 @@ object WatchVectorIcons {
         vector(REFRESH_PATH)
     }
 
+    /**
+     * 工具面板入口（Material Symbols 的 apps：3×3 圆角方块阵列）。
+     *
+     * 底部操作行只有四个格子，用图形比再挤两个字"工具"更省地方，
+     * 也不受字体子集是否收录该字影响。
+     */
+    private const val APPS_PATH =
+        "M4 8h4V4H4v4zm6 12h4v-4h-4v4zm-6 0h4v-4H4v4zm0-6h4v-4H4v4z" +
+            "m6 0h4v-4h-4v4zm6-10v4h4V4h-4zm-6 4h4V4h-4v4zm6 6h4v-4h-4v4zm0 6h4v-4h-4v4z"
+
+    val Apps: ImageVector by lazy {
+        vector(APPS_PATH)
+    }
+
     private fun vector(path: String): ImageVector =
         ImageVector.Builder(
             name = "WatchIcon",

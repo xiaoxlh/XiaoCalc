@@ -99,6 +99,10 @@ class SharedPreferencesStores(context: Context) : Stores {
         themeColor = ThemeColor.fromName(settingsPrefs.getString(CalcSettings.KEY_THEME, null)),
         // 联网默认关闭：只有用户显式同意过才为 true
         allowNetwork = settingsPrefs.getBoolean(CalcSettings.KEY_NETWORK, false),
+        // 缺失或越界一律回落到全精度：宁可多显示几亿分之一，也不要因为脏数据砍掉精度
+        decimals = settingsPrefs
+            .getInt(CalcSettings.KEY_DECIMALS, CalcSettings.FULL)
+            .coerceIn(0, CalcSettings.FULL),
     )
 
     override fun save(settings: CalcSettings) {
@@ -114,6 +118,7 @@ class SharedPreferencesStores(context: Context) : Stores {
             .putBoolean(CalcSettings.KEY_HAPTICS, settings.haptics)
             .putString(CalcSettings.KEY_THEME, settings.themeColor.name)
             .putBoolean(CalcSettings.KEY_NETWORK, settings.allowNetwork)
+            .putInt(CalcSettings.KEY_DECIMALS, settings.decimals.coerceIn(0, CalcSettings.FULL))
             .apply()
     }
 

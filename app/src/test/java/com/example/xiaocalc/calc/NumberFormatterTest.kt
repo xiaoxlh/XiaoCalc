@@ -194,4 +194,50 @@ class NumberFormatterTest {
         assertEquals("NaN", NumberFormatter.format(Double.NaN, defaults))
         assertTrue(NumberFormatter.plainForReuse(Double.POSITIVE_INFINITY).isEmpty())
     }
-}
+
+    // ------------------------------------------------------------ 小数位数设置
+
+    @Test
+    fun `默认全精度与 16 位有效数字逐值一致`() {
+        // 默认值必须等于"没有这个设置"，否则老用户升级后看到的结果会变
+        for (v in listOf(1.0 / 3.0, 2.0 / 7.0, 12345.6789, -0.5, 1e-3)) {
+            assertEquals(
+                "v=$v",
+                NumberFormatter.format(v, defaults.copy(decimals = CalcSettings.FULL)),
+                NumberFormatter.format(v, defaults),
+            )
+        }
+    }
+
+    @Test
+    fun `限制小数位数后按位舍入`() {
+        val two = defaults.copy(decimals = 2, groupDigits = false)
+        assertEquals("0.33", NumberFormatter.format(java.math.BigDecimal("0.3333333333333333"), two))
+        assertEquals("3", NumberFormatter.format(java.math.BigDecimal("2.7"), defaults.copy(decimals = 0)))
+        assertEquals("0.1235", NumberFormatter.format(java.math.BigDecimal("0.12345"), defaults.copy(decimals = 4)))
+        assertEquals("1,234.6", NumberFormatter.format(java.math.BigDecimal("1234.567"), defaults.copy(decimals = 1)))
+        // 末尾的 0 要去掉：保留 3 位小数时 0.5 仍然写 0.5，不是 0.500
+        assertEquals("0.5", NumberFormatter.format(java.math.BigDecimal("0.5"), defaults.copy(decimals = 3)))
+    }
+
+    @Test
+    fun `小数位为 0 时非零值不会被抹成 0`() {
+        // 把 1/3 显示成 "0" 等于抹掉全部有效信息，宁可退回科学计数法
+        val zero = defaults.copy(decimals = 0)
+        val third = NumberFormatter.format(java.math.BigDecimal("0.333333333333"), zero)
+        assertTrue("0 位小数把非零值抹成了 $third", third != "0")
+        assertEquals("3", NumberFormatter.format(java.math.BigDecimal("3.4"), zero))
+    }
+
+    @Test
+    fun `小数位数越界时被夹到合法区间`() {
+        val big = java.math.BigDecimal("0.12345678901234567")
+        assertEquals(
+            NumberFormatter.format(big, defaults.copy(decimals = CalcSettings.FULL)),
+            NumberFormatter.format(big, defaults.copy(decimals = 99)),
+        )
+        assertEquals(
+            NumberFormatter.format(big, defaults.copy(decimals = 0)),
+            NumberFormatter.format(big, defaults.copy(decimals = -5)),
+        )
+    }}

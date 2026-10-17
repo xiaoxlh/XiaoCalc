@@ -4,6 +4,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import java.math.BigDecimal
+import java.time.LocalDate
 
 /** 汇率的状态 */
 sealed interface RateStatus {
@@ -172,6 +173,21 @@ class CurrencyState(
         if (status is RateStatus.Updated || status is RateStatus.Loading) {
             status = RateStatus.NotAuthorized
         }
+    }
+
+    /**
+     * 缓存的汇率是否已经"过期到需要自动续"。
+     *
+     * 判定用**日期**而不是"距上次更新多少小时"：汇率本来就是按日发布的，
+     * 同一天里刷新多少次拿到都是同一份数据。因此"不是今天的"才值得再请求一次，
+     * 也天然保证了同一天不会重复请求。
+     *
+     * 没有缓存时同样返回 true——第一次总得取一次。
+     */
+    fun needsAutoRenew(today: LocalDate): Boolean {
+        val cached = cachedDate ?: return true
+        val date = runCatching { LocalDate.parse(cached) }.getOrNull() ?: return true
+        return date.isBefore(today)
     }
 
     // ------------------------------------------------------------------ 求值

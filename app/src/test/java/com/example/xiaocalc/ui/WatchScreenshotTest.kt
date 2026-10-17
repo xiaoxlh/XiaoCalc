@@ -2,6 +2,13 @@ package com.example.xiaocalc.ui
 
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.padding
+import androidx.compose.ui.Alignment
+import com.example.xiaocalc.adaptive.scaled
+import com.example.xiaocalc.ui.components.SliderRow
+import androidx.compose.foundation.layout.Box
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
@@ -453,7 +460,52 @@ class WatchScreenshotTest {
         return state
     }
 
-    private fun currencySnapshot(name: String, state: CurrencyState) = snapshot(name) {
+        /**
+     * 小数位数滑杆。它挂在设置页较靠下的位置，整页快照拍不到，
+     * 因此单独拍一张——这是全应用唯一的连续输入控件，值得有自己的金标。
+     */
+    @Test
+    fun settings_decimals_slider() {
+        snapshot("settings_decimals_slider") {
+            Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+              Column(
+                modifier = Modifier.fillMaxWidth().padding(horizontal = scaled(24f)),
+                horizontalAlignment = Alignment.CenterHorizontally,
+              ) {
+                SliderRow(
+                    title = "小数位数",
+                    valueLabel = "全精度",
+                    value = CalcSettings.FULL.toFloat(),
+                    steps = CalcSettings.FULL - 1,
+                    valueRange = 0f..CalcSettings.FULL.toFloat(),
+                    onValueChange = {},
+                )
+              }
+            }
+        }
+    }
+    // ------------------------------------------------------------------ 工具面板
+
+    /**
+     * 工具面板：四个大图块替代原先六项的小字菜单。
+     *
+     * 关掉错峰入场再拍：动画的 alpha 在渲染时刻还是 0，开着会拍到一块空面板。
+     * 这里要守住的是**排版**——四格是否落在圆内、文字是否被截断。
+     */
+    @Test
+    fun tools_panel() {
+        snapshot("tools_panel") {
+            ToolsPanel(
+                onDismiss = {},
+                onEquation = {},
+                onGraph = {},
+                onUnits = {},
+                onCurrency = {},
+                animated = false,
+            )
+        }
+    }
+private fun currencySnapshot(name: String, state: CurrencyState) = snapshot(name) {
         CurrencyScreen(
             state = state,
             source = OfflineRateSource(),

@@ -50,7 +50,7 @@ object NumberFormatter {
         if (settings.scientific && magnitude >= SCI_SETTING_THRESHOLD) return scientific(value)
         if (magnitude >= SCI_UPPER || magnitude < SCI_LOWER) return scientific(value)
 
-        val plain = decimal(value, SIGNIFICANT_DIGITS)
+        val plain = decimal(value, settings.decimals)
         return if (settings.groupDigits) groupThousands(plain) else plain
     }
 
@@ -91,10 +91,27 @@ object NumberFormatter {
 
     // ------------------------------------------------------------------ 十进制
 
-    private fun decimal(value: BigDecimal, digits: Int): String {
-        val rounded = value
-            .round(MathContext(digits, RoundingMode.HALF_UP))
-            .stripTrailingZeros()
+    /**
+     * 十进制输出。
+     *
+     * [decimals] 为 [CalcSettings.FULL]（默认）时舍到 16 位**有效数字**——
+     * 这是对外承诺的精度，与 1.1.x 一致。
+     *
+     * 一旦用户把小数位限制到更小的值，就改为舍到那么多位小数。
+     * 这里额外守住一条：**非零值不允许被舍成 `0`**。
+     * `1÷3` 在"0 位小数"下按字面确实是 0，但把 0.333… 显示成 `0`
+     * 等于把有效信息抹掉，用户会以为算错了；这种情况下改用科学计数法，
+     * 至少还留着量级与几位有效数字。
+     */
+    private fun decimal(value: BigDecimal, decimals: Int): String {
+        val limit = decimals.coerceIn(0, CalcSettings.FULL)
+        val rounded = if (limit >= CalcSettings.FULL) {
+            value.round(MathContext(SIGNIFICANT_DIGITS, RoundingMode.HALF_UP))
+        } else {
+            val scaled = value.setScale(limit, RoundingMode.HALF_UP)
+            if (scaled.signum() == 0 && value.signum() != 0) return scientific(value)
+            scaled
+        }.stripTrailingZeros()
         var text = rounded.toPlainString()
         if (text.contains('.')) text = text.trimEnd('0').trimEnd('.')
         return text.ifEmpty { "0" }

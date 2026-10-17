@@ -62,6 +62,7 @@ import com.example.xiaocalc.ui.components.WatchIcons
 import com.example.xiaocalc.ui.components.WatchVectorIcons
 import com.example.xiaocalc.ui.components.rememberKeyHaptics
 import com.example.xiaocalc.ui.components.rotaryTarget
+import java.time.LocalDate
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -118,6 +119,15 @@ fun CurrencyScreen(
             source.fetch(Currencies.BASE, Currencies.quoteCodes)
         }
         state.applyResult(fetched, "没取到汇率，请检查网络")
+    }
+
+    // 自动续期：已授权、且本地汇率不是今天的，进页面时补做一次完整更新。
+    // 判定按**日期**（见 CurrencyState.needsAutoRenew），因此同一天不会重复请求；
+    // 失败也不弹任何东西——用户没主动点更新，不该被错误消息打断。
+    LaunchedEffect(Unit) {
+        if (settings.allowNetwork && state.needsAutoRenew(LocalDate.now())) {
+            refreshTick++
+        }
     }
 
     RotaryHandler(AppPage.CURRENCY) { pixels ->
@@ -312,9 +322,10 @@ internal fun ConsentPanel(onDecline: () -> Unit, onAccept: () -> Unit) {
                 )
                 Spacer(Modifier.height(scaled(10f)))
                 Text(
-                    text = "仅在你点「更新」时，向 api.frankfurter.dev 请求汇率" +
-                        "（欧洲央行等官方数据源）。请求只带货币代码，" +
-                        "不含任何设备或用户信息。可随时在设置中撤销。",
+                    text = "仅在需要时向 api.frankfurter.dev（欧洲央行等官方数据源）请求汇率，" +
+                        "只带货币代码，不含任何设备或用户信息。\n" +
+                        "同意后，汇率不是今天的时会自动更新一次；也可随时点刷新。" +
+                        "可随时在设置中撤销。",
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     fontSize = scaledSp(15f),
                     textAlign = TextAlign.Start,

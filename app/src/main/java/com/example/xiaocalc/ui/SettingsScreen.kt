@@ -175,7 +175,7 @@ fun SettingsScreen(
                 SettingRow(
                     title = "联网获取汇率",
                     description = if (settings.allowNetwork) {
-                        "仅在你点「更新」时请求官方汇率"
+                        "汇率过期时自动更新一次"
                     } else {
                         "已关闭 · 使用上次缓存的汇率"
                     },
