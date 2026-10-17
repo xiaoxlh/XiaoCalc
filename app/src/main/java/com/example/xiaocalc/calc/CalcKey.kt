@@ -50,6 +50,7 @@ sealed class CalcKey(
     class Fn(val name: String) : CalcKey(name, KeyKind.FUNCTION, "$name(")
 
     object Ln : CalcKey("ln", KeyKind.FUNCTION, "ln(")
+    object Log : CalcKey("log", KeyKind.FUNCTION, "log(")
 
     object Equals : CalcKey("=", KeyKind.EQUALS)
 
@@ -104,14 +105,14 @@ val MainKeypad: List<CalcKey> = listOf(
  * 既割裂又和主键盘的运算符列对不上。
  *
  * `x²` 已删除：它与 `^2` 完全等价，却占掉一个格位、还让人以为"平方"是独立功能。
- * 删除后本页只有 15 个键，末行空出一格——由 [com.example.xiaocalc.ui.components.Keypad]
- * 把不足一行的按键**居中**摆放，缺口因此看起来是对称留白而不是漏排。
+ * 末行原本空出一格（15 个键），现由 `log`（常用对数）补上：
+ * `ln` 早已在页上，而 `log` 是它最直接的搭档，缺了它就得靠 `ln(x)/ln(10)` 手算。
  */
 val FunctionKeypad: List<CalcKey> = listOf(
     CalcKey.LParen, CalcKey.RParen, CalcKey.SquareRoot, CalcKey.Power,
     CalcKey.Fn("sin"), CalcKey.Fn("cos"), CalcKey.Fn("tan"), CalcKey.Mod,
     CalcKey.Percent, CalcKey.Factorial, CalcKey.Pi, CalcKey.Euler,
-    CalcKey.AngleUnit, CalcKey.Ln, CalcKey.Equals,
+    CalcKey.AngleUnit, CalcKey.Ln, CalcKey.Log, CalcKey.Equals,
 )
 
 fun keypadFor(page: KeypadPage): List<CalcKey> = when (page) {

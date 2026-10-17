@@ -111,6 +111,6 @@ class EquationState {
         val BINARY_OPERATORS = setOf('+', '-', '−', '×', '÷', '^')
 
         /** 退格时应当整体删除的函数尾串（长的排前面） */
-        val FUNCTION_TAILS = listOf("sin(", "cos(", "tan(", "ln(", "√(")
+        val FUNCTION_TAILS = listOf("sin(", "cos(", "tan(", "ln(", "log(", "√(")
     }
 }

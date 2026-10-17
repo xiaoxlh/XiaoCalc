@@ -474,11 +474,12 @@ class WatchScreenshotTest {
               ) {
                 SliderRow(
                     title = "小数位数",
-                    valueLabel = "全精度",
+                    valueLabel = "16",
                     value = CalcSettings.FULL.toFloat(),
                     steps = CalcSettings.FULL - 1,
                     valueRange = 0f..CalcSettings.FULL.toFloat(),
                     onValueChange = {},
+                    description = "16 位有效数字",
                 )
               }
             }

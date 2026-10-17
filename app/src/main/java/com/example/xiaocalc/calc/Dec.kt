@@ -164,6 +164,20 @@ object Dec {
         return ONE.scaleByPowerOfTen(Math.floorDiv(exponent, 2))
     }
 
+    /**
+     * 常用对数（以 10 为底），x 必须 > 0。
+     *
+     * 用 `ln x / ln 10` 而不是另写一套泰勒展开：底数换算是恒等式，
+     * 复用同一条 [ln] 保证两个对数函数在 50 位工作精度下误差同源，
+     * 也避免"log 与 ln 对同一个数给出互不相容的结果"这类隐蔽 bug。
+     */
+    fun log10(x: BigDecimal): BigDecimal {
+        if (x.signum() <= 0) throw ArithmeticException("对数的定义域为 (0, +∞)")
+        return ln(x).divide(LN10, MC)
+    }
+
+    private val LN10: BigDecimal by lazy { ln(BigDecimal.TEN) }
+
     /** 自然对数，x 必须 > 0。 */
     fun ln(x: BigDecimal): BigDecimal {
         if (x.signum() <= 0) throw ArithmeticException("对数的定义域为 (0, +∞)")

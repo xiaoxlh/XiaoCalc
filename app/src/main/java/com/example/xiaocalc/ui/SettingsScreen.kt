@@ -142,11 +142,7 @@ fun SettingsScreen(
                 // 直接在本页拖一条滑杆，左边标题、右边当前取值、下面一行说明"意味着什么"。
                 SliderRow(
                     title = "小数位数",
-                    valueLabel = if (settings.decimals >= CalcSettings.FULL) {
-                        "全精度"
-                    } else {
-                        "${settings.decimals} 位"
-                    },
+                    valueLabel = "${settings.decimals}",
                     value = settings.decimals.toFloat(),
                     steps = CalcSettings.FULL - 1,
                     valueRange = 0f..CalcSettings.FULL.toFloat(),
@@ -158,7 +154,7 @@ fun SettingsScreen(
                         }
                     },
                     description = if (settings.decimals >= CalcSettings.FULL) {
-                        "默认 · 不额外限制，按 16 位有效数字显示"
+                        "16 位有效数字"
                     } else {
                         "最多保留 ${settings.decimals} 位小数"
                     },

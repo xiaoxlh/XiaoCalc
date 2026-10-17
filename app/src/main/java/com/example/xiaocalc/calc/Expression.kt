@@ -106,7 +106,7 @@ class ExpressionEvaluator(
                     val raw = text.substring(start, i)
                     val name = raw.lowercase()
                     when {
-                        name == "sin" || name == "cos" || name == "tan" || name == "ln" ->
+                        name == "sin" || name == "cos" || name == "tan" || name == "ln" || name == "log" ->
                             out += Token(Kind.FUNC, start, name = name)
                         name == "mod" -> out += Token(Kind.MOD, start)
                         name == "pi" -> out += Token(Kind.CONST, start, name = "pi")
@@ -333,6 +333,11 @@ class ExpressionEvaluator(
             "ln" -> {
                 if (argument.signum() <= 0) throw CalcException(CalcError.NOT_FINITE, token.pos)
                 math(token.pos) { Dec.ln(argument) }
+            }
+            // 常用对数（以 10 为底）：ln 的天然搭档，函数页此前缺的就是它
+            "log" -> {
+                if (argument.signum() <= 0) throw CalcException(CalcError.NOT_FINITE, token.pos)
+                math(token.pos) { Dec.log10(argument) }
             }
             else -> throw CalcException(CalcError.UNKNOWN_FUNCTION, token.pos)
         }

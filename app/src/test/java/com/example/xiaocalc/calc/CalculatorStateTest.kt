@@ -398,9 +398,9 @@ class CalculatorStateTest {
     @Test
     fun `键盘布局完整性`() {
         assertEquals(16, MainKeypad.size)
-        // 函数页删掉 `x²` 后是 15 个键，末行少一格（由 Keypad 居中摆放）。
+        // 函数页删掉 `x²` 后空出一格，由 `log` 补上，正好铺满 4×4。
         // 这里断言的是"不超过 4×4 的格位"，多出来的键会被静默丢弃、根本渲染不出来。
-        assertEquals(15, FunctionKeypad.size)
+        assertEquals(16, FunctionKeypad.size)
         assertTrue("函数页不能超过 4×4 的格位", FunctionKeypad.size <= 16)
         assertTrue("`x²` 应当已被删除（与 ^2 等价）", FunctionKeypad.none { it.label == "x²" })
         assertTrue(MainKeypad.any { it.label == "=" })

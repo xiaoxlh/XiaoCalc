@@ -216,6 +216,6 @@ class CurrencyState(
 
     private companion object {
         val BINARY_OPERATORS = setOf('+', '-', '−', '×', '÷', '^')
-        val FUNCTION_TAILS = listOf("sin(", "cos(", "tan(", "ln(", "√(")
+        val FUNCTION_TAILS = listOf("sin(", "cos(", "tan(", "ln(", "log(", "√(")
     }
 }

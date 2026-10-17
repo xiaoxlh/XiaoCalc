@@ -156,7 +156,7 @@ class GraphState {
 
     private companion object {
         val BINARY_OPERATORS = setOf('+', '-', '−', '×', '÷', '^')
-        val FUNCTION_TAILS = listOf("sin(", "cos(", "tan(", "ln(", "√(")
+        val FUNCTION_TAILS = listOf("sin(", "cos(", "tan(", "ln(", "log(", "√(")
 
         /** 最小/最大半跨度：再窄或再宽都已经没有绘图意义 */
         val MIN_HALF_SPAN: BigDecimal = BigDecimal("0.001")

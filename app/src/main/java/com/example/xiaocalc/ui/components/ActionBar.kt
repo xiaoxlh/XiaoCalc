@@ -8,6 +8,12 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
+import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.padding
+import androidx.compose.material3.Text
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.text.style.TextOverflow
+import com.example.xiaocalc.adaptive.scaledSp
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
@@ -135,9 +141,15 @@ fun ActionBar(
 /**
  * 合并后的分页开关。
  *
- * 键面写的是**按下去会到哪一页**（在数字页上写 `fx`，在函数页上写 `123`），
- * 而不是"当前在哪一页"——因为键盘内容本身已经说明了当前页；
- * 若这里再重复一次，四格里就有两格在说同一件事，而"能去哪"反而无处可见。
+ * ## 键面画"当前页"，角标画"可切过去的那一页"
+ *
+ * 这一格同时承担两件事：告诉用户现在在哪里（123 / fx），以及提示按下去会怎样。
+ * 只写一个就会丢信息——只写当前页，用户不知道它能按；只写目标页，
+ * 用户又会把"fx"误读成"现在是函数页"。
+ *
+ * 因此：**主体用强调色写当前页**（强调色 = "这是你所在的位置"），
+ * 右下角一个**中性色小角标**写另一页（中性色 = "顺带说一句，还能切过去"）。
+ * 两种颜色分工，恰好也对应两句话的分量。
  */
 @Composable
 private fun PageToggleChip(
@@ -149,29 +161,57 @@ private fun PageToggleChip(
 ) {
     val haptics = rememberKeyHaptics(hapticsEnabled)
     val target = if (page == KeypadPage.MAIN) KeypadPage.FUNCTIONS else KeypadPage.MAIN
-    CalcKeyButton(
-        key = if (target == KeypadPage.MAIN) CalcKey.PageMain else CalcKey.PageFunctions,
-        widthDu = widthDu,
-        heightDu = heightDu,
-        hapticsEnabled = hapticsEnabled,
-        onKey = {
-            haptics(false)
-            onSelectPage(target)
-        },
-        glyphOverride = if (target == KeypadPage.MAIN) "123" else "fx",
-        shape = RoundedCornerShape(percent = CHIP_CORNER_PERCENT),
-        fontWeightOverride = FontWeight.Bold,
-        containerOverride = MaterialTheme.colorScheme.surfaceContainerHigh,
-        contentOverride = MaterialTheme.colorScheme.onSurface,
-    )
+    val currentLabel = if (page == KeypadPage.MAIN) "123" else "fx"
+    val otherLabel = if (target == KeypadPage.MAIN) "123" else "fx"
+    Box(
+        modifier = Modifier
+            .width(scaled(widthDu))
+            .height(scaled(heightDu)),
+        contentAlignment = Alignment.Center,
+    ) {
+        CalcKeyButton(
+            key = if (page == KeypadPage.MAIN) CalcKey.PageMain else CalcKey.PageFunctions,
+            widthDu = widthDu,
+            heightDu = heightDu,
+            hapticsEnabled = hapticsEnabled,
+            onKey = {
+                haptics(false)
+                onSelectPage(target)
+            },
+            glyphOverride = currentLabel,
+            description = "当前是$currentLabel 页，切换到$otherLabel",
+            shape = RoundedCornerShape(percent = CHIP_CORNER_PERCENT),
+            // 字号收一档：角标占掉右下角，21du 的"123"会与它撞在一起（真机截图确认过）
+            fontSizeOverride = scaledSp(16f),
+            fontWeightOverride = FontWeight.Bold,
+            containerOverride = MaterialTheme.colorScheme.primary,
+            contentOverride = MaterialTheme.colorScheme.onPrimary,
+        )
+        // 角标本身不接手势：点它应当等同于点整个按钮，而不是变成另一个热区
+        Box(
+            modifier = Modifier
+                .align(Alignment.BottomEnd)
+                .padding(end = scaled(1.5f), bottom = scaled(1.5f))
+                .clip(RoundedCornerShape(scaled(5f)))
+                .background(MaterialTheme.colorScheme.surfaceContainerHigh)
+                .padding(horizontal = scaled(3f), vertical = scaled(0.5f)),
+        ) {
+            Text(
+                text = otherLabel,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                fontSize = scaledSp(10f),
+                fontWeight = FontWeight.Bold,
+                maxLines = 1,
+            )
+        }
+    }
 }
-
 /**
- * 分页胶囊。
+ * 独立的分页胶囊（单位/货币页用）。
  *
  * 与 [CalcKeyButton] 的区别**刻意做在形状上**：这里用 50% 圆角的胶囊形，
  * 普通按键是 32% 圆角的矩形。只靠颜色区分不够——未选中的胶囊底色
- * (surfaceContainerHigh) 与函数键完全相同，光看颜色根本分不出哪个是"翻页"。
+ * 与函数键的容器色可能相同，光看颜色分不出哪个是"翻页"。
  */
 @Composable
 private fun PageChip(

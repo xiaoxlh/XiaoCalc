@@ -175,6 +175,6 @@ class UnitConverterState(initialCategory: UnitCategory = UnitCategory.LENGTH) {
         val BINARY_OPERATORS = setOf('+', '-', '×', '÷', '^', '%')
 
         /** 退格时应当整体删除的函数尾串（长的排前面，避免 "n(" 抢先匹配 "ln("） */
-        val FUNCTION_TAILS = listOf("sin(", "cos(", "tan(", "ln(", "mod", "√(")
+        val FUNCTION_TAILS = listOf("sin(", "cos(", "tan(", "ln(", "log(", "mod", "√(")
     }
 }
