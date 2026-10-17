@@ -35,6 +35,7 @@ import androidx.compose.ui.semantics.progressBarRangeInfo
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.setProgress
 import kotlin.math.roundToInt
+import androidx.compose.ui.unit.dp
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -185,14 +186,17 @@ fun SectionLabel(text: String, modifier: Modifier = Modifier) {
 
 
 /**
- * 设置项：左标题 + 右当前取值，下面一条可拖动的档位滑杆。
+ * 设置项：左标题 + 右当前取值，下面一条滑杆。
  *
- * 为什么不用官方的 `androidx.wear.compose.material3.Slider`：
- * 那个组件**只有两端的 ± 按钮，根本没有拖动**（源码里没有任何 `detectDragGestures`），
- * 中间的条只是画出来的进度。而它每次调值会触发 `SegmentFrequentTick` /
- * `GestureEnd` 两种触感，在只调一格时听起来像"嗡"地长震一下。
+ * ## 用官方组件 + 一层拖动手势
  *
- * 自己要的东西很明确：拖得动、一次只"嗒"一下，因此这里自己画。
+ * 视觉走官方的 `androidx.wear.compose.material3.Slider`，保证与其它手表应用同风格。
+ * 但那个组件**只有两端的 ± 按钮，没有任何拖动**（源码里没有 `detectDragGestures`），
+ * 而"拖一下调到某一档"是数值设置的直觉操作。所以在这里叠一层**透明的拖动手势**：
+ * 只接管横向拖动，不碰点击——± 按钮照常收到自己的点击。
+ *
+ * 触感交给官方组件（它按 SegmentFrequentTick 走），我们的拖动另外补一次短震；
+ * 拖动只在"取整后的档位真的变了"时回调，手抖不会连震。
  */
 @Composable
 fun SliderRow(
@@ -206,7 +210,6 @@ fun SliderRow(
     /** 滑杆下方的说明 */
     description: String = "",
 ) {
-    val haptics = rememberKeyHaptics(true)
     Column(modifier.fillMaxWidth()) {
         Row(
             modifier = Modifier
@@ -233,16 +236,11 @@ fun SliderRow(
                 maxLines = 1,
             )
         }
-        Spacer(Modifier.height(scaled(4f)))
-        StepSlider(
+        DragAdjustableSlider(
             value = value,
-            valueRange = valueRange,
             steps = steps,
-            // 一次调一格只给一次短震：长震会让人以为触发了别的操作
-            onValueChange = {
-                haptics(false)
-                onValueChange(it)
-            },
+            valueRange = valueRange,
+            onValueChange = onValueChange,
         )
         if (description.isNotEmpty()) {
             Text(
@@ -259,110 +257,59 @@ fun SliderRow(
 }
 
 /**
- * 可拖动的档位滑杆。
+ * 官方滑杆 + 拖动层。
  *
- * 点一下就跳到位、按住拖动连续调整；只在**取整后的档位真的变了**时才回调，
- * 因此触感与取值一样是一格一次，不会因为手指抖一下就连震。
+ * 拖动层的横向可用区间要**扣掉两端按钮**：按钮宽约 [SLIDER_BUTTON_DP]，
+ * 不扣的话手指拖到最左端时实际只到了 70%，用户会觉得"拖不到底"。
  */
 @Composable
-private fun StepSlider(
+private fun DragAdjustableSlider(
     value: Float,
-    valueRange: ClosedFloatingPointRange<Float>,
     steps: Int,
+    valueRange: ClosedFloatingPointRange<Float>,
     onValueChange: (Float) -> Unit,
-    modifier: Modifier = Modifier,
 ) {
-    val density = LocalDensity.current
-    val thumbPx = with(density) { scaled(THUMB_DU).toPx() }
-    val trackHeightPx = with(density) { scaled(TRACK_DU).toPx() }
-    val trackColor = MaterialTheme.colorScheme.surfaceContainerHighest
-    val fillColor = MaterialTheme.colorScheme.primary
-    val thumbColor = MaterialTheme.colorScheme.onPrimary
+    val haptics = rememberKeyHaptics(true)
     var widthPx by remember { mutableStateOf(0f) }
-
-    // 手势回调是挂起在 pointerInput 里的，直接读 value 会拿到首次合成的旧值
     val current by rememberUpdatedState(value)
+    val density = LocalDensity.current
+    val padPx = with(density) { SLIDER_BUTTON_DP.dp.toPx() }
 
     val span = valueRange.endInclusive - valueRange.start
     val stepCount = steps + 1
     val stepSize = if (stepCount > 0) span / stepCount else span
-    val fraction = if (span > 0f) (value - valueRange.start) / span else 0f
 
     fun snap(x: Float): Float? {
-        if (widthPx <= thumbPx || stepSize <= 0f) return null
-        val usable = widthPx - thumbPx
-        val ratio = ((x - thumbPx / 2f) / usable).coerceIn(0f, 1f)
+        if (widthPx <= 2 * padPx || stepSize <= 0f) return null
+        val ratio = ((x - padPx) / (widthPx - 2 * padPx)).coerceIn(0f, 1f)
         val index = (ratio * stepCount).roundToInt().coerceIn(0, stepCount)
         return valueRange.start + index * stepSize
     }
 
     Box(
-        modifier = modifier
+        modifier = Modifier
             .fillMaxWidth()
-            .height(scaled(CONTROL_DU))
-            .clip(RoundedCornerShape(percent = 50))
-            .background(MaterialTheme.colorScheme.surfaceContainerHigh)
             .onSizeChanged { widthPx = it.width.toFloat() }
-            .semantics {
-                progressBarRangeInfo = ProgressBarRangeInfo(
-                    current = current,
-                    range = valueRange,
-                    steps = steps,
-                )
-                setProgress { target ->
-                    onValueChange(target.coerceIn(valueRange.start, valueRange.endInclusive))
-                    true
-                }
-            }
-            .pointerInput(Unit) {
-                detectTapGestures { offset ->
-                    snap(offset.x)?.let { if (it != current) onValueChange(it) }
-                }
-            }
             .pointerInput(Unit) {
                 detectHorizontalDragGestures { change, _ ->
                     change.consume()
-                    snap(change.position.x)?.let { if (it != current) onValueChange(it) }
+                    snap(change.position.x)?.let {
+                        if (it != current) {
+                            haptics(false)
+                            onValueChange(it)
+                        }
+                    }
                 }
             },
-        contentAlignment = Alignment.CenterStart,
     ) {
-        Canvas(Modifier.fillMaxSize()) {
-            val trackHeight = trackHeightPx
-            val radius = trackHeight / 2f
-            val left = thumbPx / 2f
-            val right = size.width - thumbPx / 2f
-            val centerY = size.height / 2f
-
-            drawRoundRect(
-                color = trackColor,
-                topLeft = Offset(left, centerY - radius),
-                size = Size((right - left).coerceAtLeast(0f), trackHeight),
-                cornerRadius = CornerRadius(radius, radius),
-            )
-            val filled = left + (right - left) * fraction.coerceIn(0f, 1f)
-            if (filled > left) {
-                drawRoundRect(
-                    color = fillColor,
-                    topLeft = Offset(left, centerY - radius),
-                    size = Size(filled - left, trackHeight),
-                    cornerRadius = CornerRadius(radius, radius),
-                )
-            }
-            drawCircle(
-                color = thumbColor,
-                radius = thumbPx / 2f,
-                center = Offset(filled.coerceIn(left, right), centerY),
-            )
-        }
+        Slider(
+            value = value,
+            onValueChange = onValueChange,
+            steps = steps,
+            valueRange = valueRange,
+        )
     }
 }
 
-/** 控件高度（设计单位） */
-private const val CONTROL_DU = 46f
-
-/** 轨道高度 */
-private const val TRACK_DU = 10f
-
-/** 滑块直径 */
-private const val THUMB_DU = 20f
+/** 官方滑杆两端按钮的近似宽度（dp）。拖动层按它扣掉两端 */
+private const val SLIDER_BUTTON_DP = 40f

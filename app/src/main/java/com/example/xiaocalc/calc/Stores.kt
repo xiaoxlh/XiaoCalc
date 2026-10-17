@@ -103,6 +103,7 @@ class SharedPreferencesStores(context: Context) : Stores {
         decimals = settingsPrefs
             .getInt(CalcSettings.KEY_DECIMALS, CalcSettings.FULL)
             .coerceIn(0, CalcSettings.FULL),
+        blurEnabled = settingsPrefs.getBoolean(CalcSettings.KEY_BLUR, true),
     )
 
     override fun save(settings: CalcSettings) {
@@ -119,6 +120,7 @@ class SharedPreferencesStores(context: Context) : Stores {
             .putString(CalcSettings.KEY_THEME, settings.themeColor.name)
             .putBoolean(CalcSettings.KEY_NETWORK, settings.allowNetwork)
             .putInt(CalcSettings.KEY_DECIMALS, settings.decimals.coerceIn(0, CalcSettings.FULL))
+            .putBoolean(CalcSettings.KEY_BLUR, settings.blurEnabled)
             .apply()
     }
 

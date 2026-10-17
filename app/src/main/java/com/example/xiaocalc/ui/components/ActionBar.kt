@@ -14,6 +14,25 @@ import androidx.compose.material3.Text
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.text.style.TextOverflow
 import com.example.xiaocalc.adaptive.scaledSp
+import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.scaleIn
+import androidx.compose.animation.scaleOut
+import androidx.compose.animation.togetherWith
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.interaction.collectIsPressedAsState
+import androidx.compose.foundation.layout.size
+import androidx.compose.material3.ripple
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.semantics.Role
+import com.example.xiaocalc.design.Motion
+import com.example.xiaocalc.design.NumTextStyle
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
@@ -151,6 +170,22 @@ fun ActionBar(
  * 右下角一个**中性色小角标**写另一页（中性色 = "顺带说一句，还能切过去"）。
  * 两种颜色分工，恰好也对应两句话的分量。
  */
+/**
+ * 合并后的分页开关（带动画）。
+ *
+ * ## 键面画"当前页"，角标画"可切过去的那一页"
+ *
+ * 这一格同时承担两件事：告诉用户现在在哪里（123 / fx），以及提示按下去会怎样。
+ * 只写一个就会丢信息——只写当前页，用户不知道它能按；只写目标页，
+ * 用户又会把"fx"误读成"现在是函数页"。
+ *
+ * ## 为什么手动搭而不是复用 [CalcKeyButton]
+ *
+ * 切换时**两个标签要对调**：大字缩下去变成角标，角标涨上来变成大字。
+ * `CalcKeyButton` 的标签是静态 Text，做不了这件事。这里自己搭一层，
+ * 用 [AnimatedContent] 给两边各自做"淡出+缩放到 0.75 / 淡入+从 0.75 放大"，
+ * 方向相反、时长错开 40ms，读起来就是一次交换，而不是两个字一起闪。
+ */
 @Composable
 private fun PageToggleChip(
     page: KeypadPage,
@@ -163,56 +198,104 @@ private fun PageToggleChip(
     val target = if (page == KeypadPage.MAIN) KeypadPage.FUNCTIONS else KeypadPage.MAIN
     val currentLabel = if (page == KeypadPage.MAIN) "123" else "fx"
     val otherLabel = if (target == KeypadPage.MAIN) "123" else "fx"
+
+    val interaction = remember { MutableInteractionSource() }
+    val pressed by interaction.collectIsPressedAsState()
+    val scale by animateFloatAsState(
+        targetValue = if (pressed) 0.93f else 1f,
+        animationSpec = Motion.press(),
+        label = "pageChipScale",
+    )
+
     Box(
         modifier = Modifier
             .width(scaled(widthDu))
-            .height(scaled(heightDu)),
+            .height(scaled(heightDu))
+            .graphicsLayer {
+                scaleX = scale
+                scaleY = scale
+            }
+            .clip(RoundedCornerShape(percent = CHIP_CORNER_PERCENT))
+            .background(MaterialTheme.colorScheme.primary)
+            .clickable(
+                interactionSource = interaction,
+                indication = ripple(),
+                role = Role.Button,
+                onClickLabel = "当前是$currentLabel 页，切换到$otherLabel",
+                onClick = {
+                    haptics(false)
+                    onSelectPage(target)
+                },
+            ),
         contentAlignment = Alignment.Center,
     ) {
-        CalcKeyButton(
-            key = if (page == KeypadPage.MAIN) CalcKey.PageMain else CalcKey.PageFunctions,
-            widthDu = widthDu,
-            heightDu = heightDu,
-            hapticsEnabled = hapticsEnabled,
-            onKey = {
-                haptics(false)
-                onSelectPage(target)
+        AnimatedContent(
+            targetState = currentLabel,
+            transitionSpec = {
+                // 进来的略微滞后，出去的先让位：看起来是"接替"而不是"叠化"
+                (
+                    fadeIn(tween(Motion.DURATION_SHORT3, delayMillis = SWAP_STAGGER_MS)) +
+                        scaleIn(
+                            initialScale = 0.72f,
+                            animationSpec = tween(Motion.DURATION_SHORT4, delayMillis = SWAP_STAGGER_MS),
+                        )
+                    ).togetherWith(
+                    fadeOut(tween(Motion.DURATION_SHORT2)) +
+                        scaleOut(targetScale = 0.72f, animationSpec = tween(Motion.DURATION_SHORT3)),
+                )
             },
-            glyphOverride = currentLabel,
-            description = "当前是$currentLabel 页，切换到$otherLabel",
-            shape = RoundedCornerShape(percent = CHIP_CORNER_PERCENT),
-            // 字号收一档：角标占掉右下角，21du 的"123"会与它撞在一起（真机截图确认过）
-            fontSizeOverride = scaledSp(16f),
-            fontWeightOverride = FontWeight.Bold,
-            containerOverride = MaterialTheme.colorScheme.primary,
-            contentOverride = MaterialTheme.colorScheme.onPrimary,
-        )
-        // 角标本身不接手势：点它应当等同于点整个按钮，而不是变成另一个热区
+            label = "pageChipLabel",
+        ) { label ->
+            Text(
+                text = label,
+                color = MaterialTheme.colorScheme.onPrimary,
+                fontSize = scaledSp(16f),
+                fontWeight = FontWeight.Bold,
+                style = NumTextStyle,
+                maxLines = 1,
+            )
+        }
+
+        // 角标：不接手势，点它等同于点整个按钮
         Box(
             modifier = Modifier
                 .align(Alignment.BottomEnd)
-                .padding(end = scaled(1.5f), bottom = scaled(1.5f))
+                .padding(end = scaled(3f), bottom = scaled(3f))
                 .clip(RoundedCornerShape(scaled(5f)))
                 .background(MaterialTheme.colorScheme.surfaceContainerHigh)
                 .padding(horizontal = scaled(3f), vertical = scaled(0.5f)),
         ) {
-            Text(
-                text = otherLabel,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                fontSize = scaledSp(10f),
-                fontWeight = FontWeight.Bold,
-                maxLines = 1,
-            )
+            AnimatedContent(
+                targetState = otherLabel,
+                transitionSpec = {
+                    (
+                        fadeIn(tween(Motion.DURATION_SHORT3, delayMillis = SWAP_STAGGER_MS)) +
+                            scaleIn(
+                                initialScale = 1.35f,
+                                animationSpec = tween(Motion.DURATION_SHORT4, delayMillis = SWAP_STAGGER_MS),
+                            )
+                        ).togetherWith(
+                        fadeOut(tween(Motion.DURATION_SHORT2)) +
+                            scaleOut(targetScale = 1.35f, animationSpec = tween(Motion.DURATION_SHORT3)),
+                    )
+                },
+                label = "pageChipBadge",
+            ) { label ->
+                Text(
+                    text = label,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    fontSize = scaledSp(10f),
+                    fontWeight = FontWeight.Bold,
+                    style = NumTextStyle,
+                    maxLines = 1,
+                )
+            }
         }
     }
 }
-/**
- * 独立的分页胶囊（单位/货币页用）。
- *
- * 与 [CalcKeyButton] 的区别**刻意做在形状上**：这里用 50% 圆角的胶囊形，
- * 普通按键是 32% 圆角的矩形。只靠颜色区分不够——未选中的胶囊底色
- * 与函数键的容器色可能相同，光看颜色分不出哪个是"翻页"。
- */
+
+/** 交换动画里两边的错峰：出去的先走，进来的稍后接上 */
+private const val SWAP_STAGGER_MS = 40
 @Composable
 private fun PageChip(
     label: String,

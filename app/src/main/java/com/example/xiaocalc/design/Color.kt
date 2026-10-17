@@ -6,38 +6,34 @@ import androidx.compose.ui.graphics.Color
 import com.example.xiaocalc.calc.ThemeColor
 
 /**
- * 品牌结构色：蓝 `#2C56FF`。
+ * 结构色与强调色现在**同源**。
  *
- * 它**不随主题变化**。蓝在这里承担"当前状态"（页面胶囊、开关选中态），
- * 而强调色承担"运算与结果"。两色分工是刻意的——
- * 若把结构色也一起换掉，"哪个是导航、哪个是运算"就分不出来了。
- */
-val BrandBlue = Color(0xFF2C56FF)
-
-/**
- * 由主题生成配色方案。
+ * 早期版本把"导航/状态"交给一个固定的品牌蓝，只让"运算与结果"跟着主题变，
+ * 理由是"两色分工能分清哪个是导航、哪个是运算"。实际用下来这个理由站不住：
+ * 换了主题之后，页面上总有几个按钮还是蓝的——用户看到的是"主题没生效"，
+ * 而不是"这里在表达结构"。所以现在 primary / secondary / tertiary 三族
+ * 全部由 [ThemeColor] 派生，只靠亮度与容器层级区分层次。
  *
- * 只有 `secondary` 一族随主题变化；其余角色固定。
- * [ThemeColor.RED] 产出的方案与旧版**逐值相同**（升级后外观零变化）。
+ * [ThemeColor.RED] 仍然与旧版的主色值一致，升级后不会突然变得陌生。
  */
 fun colorSchemeFor(theme: ThemeColor): ColorScheme = darkColorScheme(
-    // 主色：品牌蓝 —— 欢迎页主按钮、开关选中、键盘"函数"键容器
-    primary = BrandBlue,
-    onPrimary = Color.White,
-    primaryContainer = Color(0xFF17225E),
-    onPrimaryContainer = Color(0xFFB9C6FF),
+    // 主色：当前页、选中态、分段控件、滚动指示
+    primary = Color(theme.accent),
+    onPrimary = Color(theme.onAccent),
+    primaryContainer = Color(theme.accentContainer),
+    onPrimaryContainer = Color(theme.onAccentContainer),
 
-    // 次色：强调色 —— "=" 键填充、运算符文字与容器
+    // 次色：与主色同源，用于"="与运算符——同一族颜色，靠容器深浅区分
     secondary = Color(theme.accent),
     onSecondary = Color(theme.onAccent),
     secondaryContainer = Color(theme.accentContainer),
     onSecondaryContainer = Color(theme.onAccentContainer),
 
-    // 第三色：用于滚动条等辅助指示
-    tertiary = Color(0xFF7FD1FF),
-    onTertiary = Color(0xFF00344A),
-    tertiaryContainer = Color(0xFF004C69),
-    onTertiaryContainer = Color(0xFFC4E7FF),
+    // 第三色：滚动条等辅助指示
+    tertiary = Color(theme.onAccentContainer),
+    onTertiary = Color(theme.accentContainer),
+    tertiaryContainer = Color(theme.accentContainer),
+    onTertiaryContainer = Color(theme.onAccentContainer),
 
     // 纯黑背景：OLED 手表省电，同时给键盘留出足够对比
     background = Color.Black,

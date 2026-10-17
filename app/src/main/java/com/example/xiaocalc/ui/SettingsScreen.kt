@@ -161,6 +161,13 @@ fun SettingsScreen(
                 )
                 Spacer(Modifier.height(scaled(6f)))
                 SettingRow(
+                    title = "背景模糊",
+                    description = "面板弹出时模糊身后页面",
+                    checked = settings.blurEnabled,
+                    onToggle = { value -> controller.updateSettings { it.copy(blurEnabled = value) } },
+                )
+                Spacer(Modifier.height(scaled(6f)))
+                SettingRow(
                     title = "科学计数法",
                     description = "≥10000 用 ×10ⁿ",
                     checked = settings.scientific,

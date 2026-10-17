@@ -51,6 +51,7 @@ import com.example.xiaocalc.ui.components.ActionBar
 import com.example.xiaocalc.ui.components.CalcDisplay
 import com.example.xiaocalc.ui.components.ClockText
 import com.example.xiaocalc.ui.components.Keypad
+import com.example.xiaocalc.ui.components.overlayBlur
 import com.example.xiaocalc.ui.components.RotaryHandler
 import com.example.xiaocalc.ui.components.RotaryTarget
 import com.example.xiaocalc.ui.components.WatchHeader
@@ -121,7 +122,9 @@ fun CalculatorScreen(
 
     Box(modifier.fillMaxSize()) {
         Column(
-            modifier = Modifier.fillMaxSize(),
+            modifier = Modifier
+                .fillMaxSize()
+                .overlayBlur(active = menuOpen, enabled = controller.settings.blurEnabled),
             horizontalAlignment = Alignment.CenterHorizontally,
         ) {
             Spacer(Modifier.height(scaled(layout.header.top)))

@@ -46,23 +46,22 @@ internal fun WearTheme(themeColor: ThemeColor, content: @Composable () -> Unit) 
  * 常规 Material 3 里没有对应项，映射到各自的容器色是最接近的语义。
  */
 private fun wearColorSchemeFor(theme: ThemeColor): ColorScheme = ColorScheme().copy(
-    // 主色：品牌蓝 —— 与常规主题保持一致
-    primary = BrandBlue,
-    onPrimary = Color.White,
-    primaryContainer = Color(0xFF17225E),
-    onPrimaryContainer = Color(0xFFB9C6FF),
-    primaryDim = Color(0xFF17225E),
+    // 主色 / 次色 / 第三色三族同源，全部由主题派生（见 colorSchemeFor 的说明）
+    primary = Color(theme.accent),
+    onPrimary = Color(theme.onAccent),
+    primaryContainer = Color(theme.accentContainer),
+    onPrimaryContainer = Color(theme.onAccentContainer),
+    primaryDim = Color(theme.accentContainer),
 
-    // 次色：强调色 —— 随主题变化
     secondary = Color(theme.accent),
     onSecondary = Color(theme.onAccent),
     secondaryContainer = Color(theme.accentContainer),
     onSecondaryContainer = Color(theme.onAccentContainer),
     secondaryDim = Color(theme.accentContainer),
 
-    tertiary = Color(0xFF7FD1FF),
-    onTertiary = Color(0xFF00344A),
-    tertiaryContainer = Color(0xFF004C69),
+    tertiary = Color(theme.onAccentContainer),
+    onTertiary = Color(theme.accentContainer),
+    tertiaryContainer = Color(theme.accentContainer),
     onTertiaryContainer = Color(0xFFC4E7FF),
     tertiaryDim = Color(0xFF004C69),
 

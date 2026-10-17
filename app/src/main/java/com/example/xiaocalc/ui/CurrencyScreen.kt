@@ -56,6 +56,7 @@ import com.example.xiaocalc.ui.components.PickerOverlay
 import com.example.xiaocalc.ui.components.RotaryHandler
 import com.example.xiaocalc.ui.components.RotaryTarget
 import com.example.xiaocalc.ui.components.SelectChip
+import com.example.xiaocalc.ui.components.overlayBlur
 import com.example.xiaocalc.ui.components.WatchHeader
 import com.example.xiaocalc.ui.components.WatchIconButton
 import com.example.xiaocalc.ui.components.WatchIcons
@@ -141,7 +142,9 @@ fun CurrencyScreen(
 
     Box(modifier.fillMaxSize()) {
         Column(
-            modifier = Modifier.fillMaxSize(),
+            modifier = Modifier
+                .fillMaxSize()
+                .overlayBlur(active = pickerOpen || consentOpen, enabled = settings.blurEnabled),
             horizontalAlignment = Alignment.CenterHorizontally,
         ) {
             Spacer(Modifier.height(scaled(layout.header.top)))
