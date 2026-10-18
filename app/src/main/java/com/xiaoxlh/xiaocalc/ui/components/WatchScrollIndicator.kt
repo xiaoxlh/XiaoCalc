@@ -23,15 +23,15 @@ fun BoxScope.WatchScrollIndicator(
     val round = LocalWatchMetrics.current.round
     val pxPerDu = with(LocalDensity.current) { scaled(1f).toPx() }
     val trackColor = MaterialTheme.colorScheme.outlineVariant
-    val thumbColor = MaterialTheme.colorScheme.tertiary
+    val thumbColor = MaterialTheme.colorScheme.onSurfaceVariant
 
     Canvas(modifier.matchParentSize()) {
         if (scroll.maxValue <= 0) return@Canvas
         val progress = scroll.value / scroll.maxValue.toFloat()
         val thumbFraction = (viewportPx / (scroll.maxValue + viewportPx)).coerceIn(0.16f, 1f)
-        val stroke = 6f * pxPerDu
+        val stroke = 9f * pxPerDu
         if (round) {
-            val radius = (size.minDimension / 2f - 16f * pxPerDu).coerceAtLeast(stroke)
+            val radius = (size.minDimension / 2f - 26f * pxPerDu).coerceAtLeast(stroke)
             val topLeft = Offset((size.width - radius * 2f) / 2f, (size.height - radius * 2f) / 2f)
             val arcSize = Size(radius * 2f, radius * 2f)
             drawArc(
@@ -54,8 +54,8 @@ fun BoxScope.WatchScrollIndicator(
                 style = Stroke(width = stroke, cap = StrokeCap.Round),
             )
         } else {
-            val length = size.height / 2f
-            val x = size.width - 10f * pxPerDu
+            val length = size.height / 4f
+            val x = size.width - 18f * pxPerDu
             val top = (size.height - length) / 2f
             drawLine(
                 color = trackColor,
@@ -77,5 +77,5 @@ fun BoxScope.WatchScrollIndicator(
     }
 }
 
-private const val ARC_START = -32f
-private const val ARC_SWEEP = 64f
+private const val ARC_START = -16f
+private const val ARC_SWEEP = 32f
